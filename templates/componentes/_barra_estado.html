@@ -1,0 +1,13 @@
+{% load componentes %}{% comment %}
+  Barra de estado con las etapas del documento: borrador → enviado → aceptado.
+  Uso: {% include "componentes/_barra_estado.html" with etapas=etapas actual="enviado" %}
+  - etapas: lista de (clave, texto). Las anteriores a la actual salen como hechas.
+  La usarán los documentos con estados (p. ej. presupuestos).
+{% endcomment %}
+<div class="btn-group btn-group-sm mb-3" role="group" aria-label="Estado">
+  {% etapas_estado etapas actual as items %}
+  {% for e in items %}
+    <span class="btn disabled opacity-100 {% if e.estado == 'actual' %}btn-primary{% elif e.estado == 'hecha' %}btn-secondary{% else %}btn-outline-secondary{% endif %}"
+          {% if e.estado == 'actual' %}aria-current="step"{% endif %}>{{ e.texto }}</span>
+  {% endfor %}
+</div>

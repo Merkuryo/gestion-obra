@@ -1,0 +1,61 @@
+{% comment %}
+  Formulario de gestión: barra de acciones arriba y campos en pestañas.
+  Uso: {% include "componentes/_formulario.html" with form=form url_descartar=url acciones=acciones %}
+  - form: hereda de core.formularios.FormularioBootstrap (grupos = pestañas)
+  - url_descartar: a dónde vuelve "Descartar" (opcional)
+  - acciones: lista de dicts {texto, icono, clase, url, post} para botones extra (opcional).
+    Con post=True el botón envía a `url` por POST (con el token CSRF del formulario).
+  - En solo lectura (form.solo_lectura) no hay botón Guardar ni Descartar.
+{% endcomment %}
+<form method="post" novalidate{% if form.is_multipart %} enctype="multipart/form-data"{% endif %}>
+  {% csrf_token %}
+  {% for oculto in form.campos_ocultos %}{{ oculto }}{% endfor %}
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3 pb-3 border-bottom">
+    {% if not form.solo_lectura %}
+      <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+      {% if url_descartar %}<a class="btn btn-outline-secondary" href="{{ url_descartar }}"><i class="bi bi-x-lg"></i> Descartar</a>{% endif %}
+    {% endif %}
+    {% for accion in acciones %}
+      {% if accion.post %}
+        <button type="submit" formaction="{{ accion.url }}" formnovalidate class="btn {{ accion.clase|default:'btn-outline-secondary' }}">{% if accion.icono %}<i class="bi {{ accion.icono }}"></i> {% endif %}{{ accion.texto }}</button>
+      {% else %}
+        <a href="{{ accion.url }}" class="btn {{ accion.clase|default:'btn-outline-secondary' }}">{% if accion.icono %}<i class="bi {{ accion.icono }}"></i> {% endif %}{{ accion.texto }}</a>
+      {% endif %}
+    {% endfor %}
+    {% if form.solo_lectura %}<span class="ms-auto text-body-secondary"><i class="bi bi-eye"></i> Solo lectura</span>{% endif %}
+  </div>
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors|join:" " }}</div>
+  {% endif %}
+
+  {% with grupos=form.grupos_renderizados %}
+    {% if grupos|length > 1 %}
+      <ul class="nav nav-tabs mb-3" role="tablist">
+        {% for g in grupos %}
+          <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link{% if g.activo %} active{% endif %}" data-bs-toggle="tab"
+                    data-bs-target="#{{ g.id }}" role="tab">
+              {{ g.titulo }}{% if g.con_errores %} <i class="bi bi-exclamation-circle-fill text-danger"></i>{% endif %}
+            </button>
+          </li>
+        {% endfor %}
+      </ul>
+      <div class="tab-content">
+        {% for g in grupos %}
+          <div class="tab-pane fade{% if g.activo %} show active{% endif %}" id="{{ g.id }}" role="tabpanel">
+            <div class="row"><div class="col-12 col-lg-8">
+              {% for campo in g.campos %}{% include "componentes/_campo.html" with campo=campo %}{% endfor %}
+            </div></div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      {% for g in grupos %}
+        <div class="row"><div class="col-12 col-lg-8">
+          {% for campo in g.campos %}{% include "componentes/_campo.html" with campo=campo %}{% endfor %}
+        </div></div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+</form>

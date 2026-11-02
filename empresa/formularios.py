@@ -3,7 +3,7 @@ from django import forms
 from core.formularios import ColorInput, FormularioBootstrap
 from core.validadores import validar_logo
 
-from .models import Empresa
+from .models import Empresa, Seccion
 
 GRUPOS = [
     (
@@ -62,3 +62,10 @@ class EmpresaForm(FormularioBootstrap, forms.ModelForm):
             for nombre in ("ancho_cliente", "ancho_obra"):
                 self.fields[nombre].disabled = True
                 self.fields[nombre].help_text = "Fijo tras la instalación."
+
+
+class SeccionForm(FormularioBootstrap, forms.ModelForm):
+    # Las fases por manos (plantilla_fases) aún no tienen pantalla propia: se editan en el admin.
+    class Meta:
+        model = Seccion
+        fields = ["codigo", "nombre", "pct_beneficio_defecto", "activa"]

@@ -1,0 +1,219 @@
+from decimal import Decimal
+
+import pytest
+from django.urls import reverse
+
+from empresa.models import Seccion
+
+LISTA = "/ajustes/secciones/"
+NUEVA = "/ajustes/secciones/nueva/"
+FASES = [{"nombre": "Imprimación", "pct": 30}, {"nombre": "Acabado", "pct": 70}]
+
+
+def datos(**cambios):
+    base = {"codigo": "PT", "nombre": "Pintura", "pct_beneficio_defecto": "15.00", "activa": "on"}
+    base.update(cambios)
+    return base
+
+
+@pytest.fixture
+def pintura(db):
+    return Seccion.objects.create(
+        codigo="PT", nombre="Pintura", pct_beneficio_defecto=Decimal("15.00"), plantilla_fases=FASES
+    )
+
+
+def url(pk, accion=""):
+    return f"{LISTA}{pk}/{accion + '/' if accion else ''}"
+
+
+# --- Acceso ------------------------------------------------------------------------------------
+@pytest.mark.parametrize("ruta", ["lista", "nueva", "ficha", "archivar", "reactivar"])
+def test_anonimo_va_al_login(client, pintura, ruta):
+    rutas = {
+        "lista": LISTA,
+        "nueva": NUEVA,
+        "ficha": url(pintura.pk),
+        "archivar": url(pintura.pk, "archivar"),
+        "reactivar": url(pintura.pk, "reactivar"),
+    }
+    for metodo in (client.get, client.post):
+        r = metodo(rutas[ruta])
+        assert r.status_code == 302 and "/cuentas/login/" in r.url
+
+
+@pytest.mark.parametrize("rol", ["Jefe de obra", None])
+def test_sin_acceso_recibe_403(cliente_con_rol, pintura, rol):
+    c = cliente_con_rol(rol)
+    for ruta in (LISTA, NUEVA, url(pintura.pk)):
+        assert c.get(ruta).status_code == 403
+    assert c.post(NUEVA, datos(codigo="XX")).status_code == 403
+    assert c.post(url(pintura.pk, "archivar")).status_code == 403
+
+
+@pytest.mark.parametrize("rol", ["Administración", "Oficina técnica"])
+def test_administracion_y_ot_solo_ven(cliente_con_rol, pintura, rol):
+    c = cliente_con_rol(rol)
+    html = c.get(LISTA).content.decode()
+    assert "Pintura" in html and "Nueva sección" not in html
+    html = c.get(url(pintura.pk)).content.decode()
+    assert "Solo lectura" in html and "Guardar" not in html and "Archivar" not in html
+    assert c.get(NUEVA).status_code == 403
+    assert c.post(NUEVA, datos(codigo="XX")).status_code == 403
+    assert c.post(url(pintura.pk), datos(nombre="Cambiada")).status_code == 403
+    assert c.post(url(pintura.pk, "archivar")).status_code == 403
+    pintura.refresh_from_db()
+    assert pintura.nombre == "Pintura" and pintura.activa
+    assert not Seccion.objects.filter(codigo="XX").exists()
+
+
+# --- Lista -------------------------------------------------------------------------------------
+@pytest.fixture
+def tres(pintura):
+    Seccion.objects.create(codigo="PyL", nombre="Pladur", pct_beneficio_defecto=Decimal("10.50"))
+    Seccion.objects.create(
+        codigo="AIS", nombre="Aislamientos", pct_beneficio_defecto=Decimal("4.25"), activa=False
+    )
+
+
+def codigos(respuesta):
+    return [f["celdas"][0]["valor"] for f in respuesta.context["lista"]["filas"]]
+
+
+def test_lista_gerencia_con_boton_nueva_y_menu(cliente_con_rol, tres):
+    r = cliente_con_rol("Gerencia").get(LISTA)
+    html = r.content.decode()
+    assert r.status_code == 200 and "Nueva sección" in html
+    assert codigos(r) == ["AIS", "PT", "PyL"]  # orden por código del modelo
+    assert "Activa" in html and "Archivada" in html
+    assert 'href="/ajustes/empresa/"' in html and 'href="/ajustes/secciones/"' in html  # menú
+    assert "breadcrumb" in html and "10,50" in html
+    assert f'href="{url(Seccion.objects.get(codigo="PT").pk)}"' in html
+
+
+def test_lista_busqueda_y_orden(cliente_con_rol, tres):
+    c = cliente_con_rol("Gerencia")
+    assert codigos(c.get(LISTA, {"q": "pla"})) == ["PyL"]
+    assert codigos(c.get(LISTA, {"q": "zzz"})) == []
+    assert codigos(c.get(LISTA, {"orden": "-codigo"})) == ["PyL", "PT", "AIS"]
+    assert codigos(c.get(LISTA, {"orden": "pct_beneficio_defecto"})) == ["AIS", "PyL", "PT"]
+    assert codigos(c.get(LISTA, {"orden": "campo_inventado"})) == ["AIS", "PT", "PyL"]
+
+
+def test_lista_vacia(cliente_con_rol, db):
+    assert "Todavía no hay registros" in cliente_con_rol("Gerencia").get(LISTA).content.decode()
+
+
+def test_la_lista_no_usa_barra_de_estado(cliente_con_rol, pintura):
+    c = cliente_con_rol("Gerencia")
+    assert 'aria-label="Estado"' not in c.get(LISTA).content.decode()
+    assert 'aria-label="Estado"' not in c.get(url(pintura.pk)).content.decode()
+
+
+# --- Crear y editar ----------------------------------------------------------------------------
+def test_crear_seccion(cliente_con_rol, db):
+    r = cliente_con_rol("Gerencia").post(NUEVA, datos(codigo="PyL", nombre="Pladur"), follow=True)
+    assert r.redirect_chain == [(LISTA, 302)]
+    assert "Sección PyL guardada" in r.content.decode()
+    s = Seccion.objects.get(codigo="PyL")
+    assert s.nombre == "Pladur" and s.pct_beneficio_defecto == Decimal("15.00") and s.activa
+    assert s.creado_por.username == "u_Gerencia" and s.history.count() == 1
+
+
+def test_formulario_nuevo_sin_acciones_de_archivo(cliente_con_rol, db):
+    html = cliente_con_rol("Gerencia").get(NUEVA).content.decode()
+    assert "Guardar" in html and "Archivar" not in html
+    assert "plantilla_fases" not in html and "nav-tabs" not in html
+
+
+def test_editar_seccion_conserva_las_fases(cliente_con_rol, pintura):
+    r = cliente_con_rol("Gerencia").post(
+        url(pintura.pk), datos(nombre="Pintura y yesos", pct_beneficio_defecto="12.50")
+    )
+    assert r.status_code == 302
+    pintura.refresh_from_db()
+    assert pintura.nombre == "Pintura y yesos" and pintura.pct_beneficio_defecto == Decimal("12.50")
+    assert pintura.plantilla_fases == FASES
+    assert pintura.modificado_por.username == "u_Gerencia" and pintura.history.count() == 2
+
+
+def test_ficha_inexistente_da_404(cliente_con_rol, db):
+    assert cliente_con_rol("Gerencia").get(url(999)).status_code == 404
+
+
+# --- Validaciones del modelo -------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "cambio, campo",
+    [
+        ({"codigo": "PINTU"}, "codigo"),  # más de 4 caracteres
+        ({"codigo": "P-T"}, "codigo"),  # carácter no permitido
+        ({"codigo": ""}, "codigo"),
+        ({"nombre": ""}, "nombre"),
+        ({"pct_beneficio_defecto": "101"}, "pct_beneficio_defecto"),
+        ({"pct_beneficio_defecto": "-1"}, "pct_beneficio_defecto"),
+        ({"pct_beneficio_defecto": "abc"}, "pct_beneficio_defecto"),
+    ],
+)
+def test_datos_no_validos_no_se_guardan(cliente_con_rol, db, cambio, campo):
+    r = cliente_con_rol("Gerencia").post(NUEVA, datos(**cambio))
+    assert r.status_code == 200 and campo in r.context["form"].errors
+    assert "invalid-feedback" in r.content.decode()
+    assert Seccion.objects.count() == 0
+
+
+def test_codigo_repetido(cliente_con_rol, pintura):
+    c = cliente_con_rol("Gerencia")
+    r = c.post(NUEVA, datos(nombre="Otra pintura"))
+    assert r.status_code == 200 and "codigo" in r.context["form"].errors
+    assert Seccion.objects.count() == 1
+    # Editar una sección conservando su propio código sí vale
+    assert c.post(url(pintura.pk), datos(nombre="Pintura 2")).status_code == 302
+
+
+# --- Archivar y reactivar ----------------------------------------------------------------------
+def test_archivar_no_borra(cliente_con_rol, pintura):
+    c = cliente_con_rol("Gerencia")
+    r = c.post(url(pintura.pk, "archivar"), follow=True)
+    assert "Sección PT archivada" in r.content.decode()
+    pintura.refresh_from_db()
+    assert not pintura.activa and Seccion.objects.count() == 1
+    assert pintura.modificado_por.username == "u_Gerencia" and pintura.history.count() == 2
+    ficha = c.get(url(pintura.pk)).content.decode()
+    assert "Archivada" in ficha and "Reactivar" in ficha
+    assert f'formaction="{url(pintura.pk, "reactivar")}"' in ficha
+
+
+def test_reactivar(cliente_con_rol, pintura):
+    c = cliente_con_rol("Gerencia")
+    c.post(url(pintura.pk, "archivar"))
+    r = c.post(url(pintura.pk, "reactivar"), follow=True)
+    assert "Sección PT reactivada" in r.content.decode()
+    pintura.refresh_from_db()
+    assert pintura.activa and pintura.history.count() == 3
+    assert "Archivar" in c.get(url(pintura.pk)).content.decode()
+
+
+def test_archivar_dos_veces_avisa_sin_error(cliente_con_rol, pintura):
+    c = cliente_con_rol("Gerencia")
+    c.post(url(pintura.pk, "archivar"))
+    r = c.post(url(pintura.pk, "archivar"), follow=True)
+    assert r.status_code == 200 and "ya está archivada" in r.content.decode()
+    assert pintura.history.count() == 2
+    c.post(url(pintura.pk, "reactivar"))
+    r = c.post(url(pintura.pk, "reactivar"), follow=True)
+    assert "ya está activa" in r.content.decode()
+
+
+def test_archivar_solo_por_post(cliente_con_rol, pintura):
+    assert cliente_con_rol("Gerencia").get(url(pintura.pk, "archivar")).status_code == 405
+    pintura.refresh_from_db()
+    assert pintura.activa
+
+
+def test_archivar_seccion_inexistente(cliente_con_rol, db):
+    assert cliente_con_rol("Gerencia").post(url(999, "archivar")).status_code == 404
+
+
+def test_urls_inversas(pintura):
+    assert reverse("empresa:secciones") == LISTA
+    assert reverse("empresa:seccion_archivar", args=[pintura.pk]) == url(pintura.pk, "archivar")

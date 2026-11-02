@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load permisos %}
+{% block titulo %}Secciones · Ajustes{% endblock %}
+{% block menu_modulo %}{% include "empresa/_menu.html" with activo="secciones" %}{% endblock %}
+{% block contenido %}
+<div class="d-flex align-items-center mb-3">
+  <h1 class="h4 mb-0">Secciones</h1>
+  {% if user|puede_editar:"ajustes" %}
+    <a class="btn btn-primary btn-sm ms-3" href="{% url 'empresa:seccion_nueva' %}"><i class="bi bi-plus-lg"></i> Nueva sección</a>
+  {% endif %}
+</div>
+{% include "componentes/_lista.html" with lista=lista %}
+{% endblock %}

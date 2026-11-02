@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 
-from .models import Empresa
+from .models import Empresa, Seccion
 
 
 def obtener_empresa() -> Empresa:
@@ -32,3 +32,31 @@ def guardar_empresa(empresa: Empresa, usuario) -> Empresa:
     empresa.modificado_por = usuario
     empresa.save()
     return empresa
+
+
+def guardar_seccion(seccion: Seccion, usuario) -> Seccion:
+    """Guarda una sección (alta o edición) con quién y cuándo."""
+    if seccion._state.adding:
+        seccion.creado_por = usuario
+    seccion.modificado_por = usuario
+    seccion.save()
+    return seccion
+
+
+def archivar_seccion(seccion: Seccion, usuario) -> Seccion:
+    """Una sección no se borra: se archiva. Error claro si ya lo estaba."""
+    if not seccion.activa:
+        raise ValidationError(f"La sección {seccion.codigo} ya está archivada.")
+    seccion.activa = False
+    seccion.modificado_por = usuario
+    seccion.save()
+    return seccion
+
+
+def reactivar_seccion(seccion: Seccion, usuario) -> Seccion:
+    if seccion.activa:
+        raise ValidationError(f"La sección {seccion.codigo} ya está activa.")
+    seccion.activa = True
+    seccion.modificado_por = usuario
+    seccion.save()
+    return seccion

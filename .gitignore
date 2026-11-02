@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+db.sqlite3
+test.sqlite3
+media/
+staticfiles/
+.venv/
+.DS_Store
+# Bases de precios con licencia: NUNCA al repositorio
+datos_privados/
+*.bc3
+!tests/fixtures/**/*.bc3

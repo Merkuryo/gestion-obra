@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block contenido %}
+  {% if not empresa %}
+    <div class="alert alert-warning">
+      <i class="bi bi-exclamation-triangle"></i>
+      La empresa aún no está configurada. Es lo primero:
+      <a href="{% url 'admin:empresa_empresa_add' %}" class="alert-link">dar de alta la empresa</a>.
+    </div>
+  {% endif %}
+  <div class="lanzador d-flex flex-wrap justify-content-center gap-4 mt-4">
+    {% for nombre, icono, fase, url in modulos %}
+      <a class="modulo text-center{% if not url %} inactivo{% endif %}" href="{{ url|default:'#' }}"
+         title="{% if url %}{{ nombre }}{% else %}Próximamente{% endif %}">
+        <div class="icono"><i class="bi {{ icono }}"></i></div>
+        <div class="fw-medium">{{ nombre }}</div>
+        {% if not url %}<small class="text-body-secondary">próximamente</small>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+{% endblock %}

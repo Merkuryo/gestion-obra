@@ -1,0 +1,72 @@
+{% load static %}{% comment %}
+  PLANTILLA BASE ÚNICA (estilo un curso): todas las páginas hacen {% extends "base.html" %}
+  y solo rellenan bloques. La barra superior, el menú de usuario y los scripts viven aquí.
+  Bloques: titulo · cabecera (CSS extra) · menu_modulo (menú del módulo en la barra) ·
+           migas (migas de pan) · contenido · scripts (JS extra)
+{% endcomment %}<!doctype html>
+<html lang="es" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}{{ empresa|default:"Gestión de obra" }}{% endblock %}</title>
+  {# Versiones fijadas y servidas en local (static/vendor). #}
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-5.3.8/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-icons-1.13.2/bootstrap-icons.min.css' %}">
+  <style>
+    /* Color corporativo de la empresa sobre Bootstrap */
+    :root {
+      --bs-primary: {{ tema.primario }};
+      --bs-primary-rgb: {{ tema.primario_rgb }};
+      --bs-link-color: {{ tema.primario }};
+      --bs-link-color-rgb: {{ tema.primario_rgb }};
+    }
+    .btn-primary {
+      --bs-btn-bg: {{ tema.primario }}; --bs-btn-border-color: {{ tema.primario }};
+      --bs-btn-hover-bg: {{ tema.primario_oscuro }}; --bs-btn-hover-border-color: {{ tema.primario_oscuro }};
+      --bs-btn-active-bg: {{ tema.primario_oscuro }}; --bs-btn-active-border-color: {{ tema.primario_oscuro }};
+    }
+    .form-control:focus, .form-select:focus, .form-check-input:focus {
+      border-color: rgba(var(--bs-primary-rgb), .6); box-shadow: 0 0 0 .25rem rgba(var(--bs-primary-rgb), .2); }
+    .form-check-input:checked { background-color: var(--bs-primary); border-color: var(--bs-primary); }
+    body { font-size: .875rem; background: var(--bs-tertiary-bg); }
+    .cifra { font-variant-numeric: tabular-nums; text-align: right; }
+    .lanzador .modulo { width: 110px; text-decoration: none; color: var(--bs-body-color); }
+    .lanzador .icono { width: 64px; height: 64px; border-radius: 14px; font-size: 1.9rem;
+      display: flex; align-items: center; justify-content: center; color: #fff;
+      background: var(--bs-primary); margin: 0 auto .5rem; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+    .lanzador .modulo.inactivo .icono { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); box-shadow: none; }
+  </style>
+  {% block cabecera %}{% endblock %}
+</head>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+  {% if user.is_authenticated %}
+  <nav class="navbar navbar-expand bg-body border-bottom px-3 py-1">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'inicio' %}" title="Aplicaciones">
+      <i class="bi bi-grid-3x3-gap-fill text-primary"></i>
+      {% if empresa.logo %}<img src="{{ empresa.logo.url }}" alt="" height="28">{% endif %}
+      <span class="fw-semibold">{{ empresa|default:"Gestión de obra" }}</span>
+    </a>
+    {% block menu_modulo %}{% endblock %}
+    <div class="ms-auto dropdown">
+      <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        {% if user.is_staff %}<li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-gear"></i> Ajustes</a></li>{% endif %}
+        <li><form method="post" action="{% url 'logout' %}">{% csrf_token %}
+          <button class="dropdown-item"><i class="bi bi-box-arrow-right"></i> Salir</button></form></li>
+      </ul>
+    </div>
+  </nav>
+  {% endif %}
+  <main class="container-xl py-4">
+    {% block migas %}{% endblock %}
+    {% for m in messages %}<div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>{% endfor %}
+    {% block contenido %}{% endblock %}
+  </main>
+  <script src="{% static 'vendor/bootstrap-5.3.8/bootstrap.bundle.min.js' %}"></script>
+  <script src="{% static 'vendor/htmx-2.0.11/htmx.min.js' %}"></script>
+  <script defer src="{% static 'vendor/alpinejs-3.17.5/alpine.min.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

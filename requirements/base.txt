@@ -1,0 +1,6 @@
+Django>=5.2,<5.3
+psycopg[binary]>=3.2,<4
+django-environ>=0.12,<1
+django-simple-history>=3.8,<4
+django-htmx>=1.21,<2
+Pillow>=11,<13

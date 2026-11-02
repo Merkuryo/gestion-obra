@@ -25,7 +25,7 @@ COLUMNAS = [
 def secciones(db):
     for codigo, nombre, pct, activa in [
         ("PT", "Pintura", "15.00", True),
-        ("PyL", "Pladur", "10.50", True),
+        ("PYL", "Pladur", "10.50", True),
         ("AIS", "Aislamientos", "4.25", False),
     ]:
         Seccion.objects.create(
@@ -45,9 +45,9 @@ def codigos(resultado):
 
 
 def test_orden_ascendente_y_descendente(secciones):
-    assert codigos(lista("?orden=codigo")) == ["AIS", "PT", "PyL"]
-    assert codigos(lista("?orden=-codigo")) == ["PyL", "PT", "AIS"]
-    assert codigos(lista("?orden=pct_beneficio_defecto")) == ["AIS", "PyL", "PT"]
+    assert codigos(lista("?orden=codigo")) == ["AIS", "PT", "PYL"]
+    assert codigos(lista("?orden=-codigo")) == ["PYL", "PT", "AIS"]
+    assert codigos(lista("?orden=pct_beneficio_defecto")) == ["AIS", "PYL", "PT"]
 
 
 def test_orden_por_campo_no_permitido_se_ignora(secciones):
@@ -67,7 +67,7 @@ def test_cabecera_alterna_el_sentido(secciones):
 
 def test_busqueda_por_codigo_o_nombre(secciones):
     assert codigos(lista("?q=pint")) == ["PT"]
-    assert codigos(lista("?q=PYL")) == ["PyL"]
+    assert codigos(lista("?q=PYL")) == ["PYL"]
     assert codigos(lista("?q=zzz")) == []
 
 
@@ -84,7 +84,7 @@ def test_totales_decimal_exacto_y_recuento(secciones):
 
 
 def test_totales_siguen_a_la_busqueda(secciones):
-    r = lista("?q=p")  # PT y PyL; "Aislamientos" no contiene "p"
+    r = lista("?q=p")  # PT y PYL; "Aislamientos" no contiene "p"
     assert r["num_registros"] == 2
     assert r["totales"][2]["valor"] == Decimal("25.50")
 

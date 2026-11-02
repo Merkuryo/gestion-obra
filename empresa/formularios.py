@@ -1,6 +1,6 @@
 from django import forms
 
-from core.formularios import ColorInput, FormularioBootstrap
+from core.formularios import CampoMayusculas, ColorInput, FormularioBootstrap
 from core.validadores import validar_logo
 
 from .models import Empresa, Seccion
@@ -65,7 +65,20 @@ class EmpresaForm(FormularioBootstrap, forms.ModelForm):
 
 
 class SeccionForm(FormularioBootstrap, forms.ModelForm):
+    # Se escribe en mayúsculas (si llega en minúsculas se convierte). Inmutable tras crearla.
+    codigo = CampoMayusculas(
+        label="Código",
+        max_length=4,
+        help_text="Hasta 4 letras MAYÚSCULAS o números. No se puede cambiar después.",
+        widget=forms.TextInput(attrs={"class": "text-uppercase", "autocomplete": "off"}),
+    )
+
     # Las fases por manos (plantilla_fases) aún no tienen pantalla propia: se editan en el admin.
     class Meta:
         model = Seccion
         fields = ["codigo", "nombre", "pct_beneficio_defecto", "activa"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:  # un campo desactivado ignora el POST y conserva el valor guardado
+            self.fields["codigo"].disabled = True

@@ -6,12 +6,12 @@ from django.template.loader import render_to_string
 def test_migas_tres_niveles_ultimo_sin_enlace():
     html = render_to_string(
         "componentes/_migas.html",
-        {"migas": [("Ajustes", "/ajustes/"), ("Secciones", "/ajustes/secciones/"), ("PyL", "")]},
+        {"migas": [("Ajustes", "/ajustes/"), ("Secciones", "/ajustes/secciones/"), ("PYL", "")]},
     )
     assert html.count("<li") == 3
     assert '<a href="/ajustes/">Ajustes</a>' in html
     assert '<a href="/ajustes/secciones/">Secciones</a>' in html
-    assert 'aria-current="page">PyL</li>' in html
+    assert 'aria-current="page">PYL</li>' in html
     assert '<a href="">' not in html
 
 

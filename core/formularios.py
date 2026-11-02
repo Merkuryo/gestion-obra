@@ -73,3 +73,11 @@ class ColorInput(forms.TextInput):
     """Selector de color del navegador (<input type="color">) para valores #RRGGBB."""
 
     input_type = "color"
+
+
+class CampoMayusculas(forms.CharField):
+    """Texto que se convierte a MAYÚSCULAS antes de validar (p. ej. códigos de sección)."""
+
+    def to_python(self, value):
+        valor = super().to_python(value)
+        return valor.upper() if valor else valor

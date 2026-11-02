@@ -70,7 +70,7 @@ def test_administracion_y_ot_solo_ven(cliente_con_rol, pintura, rol):
 # --- Lista -------------------------------------------------------------------------------------
 @pytest.fixture
 def tres(pintura):
-    Seccion.objects.create(codigo="PyL", nombre="Pladur", pct_beneficio_defecto=Decimal("10.50"))
+    Seccion.objects.create(codigo="PYL", nombre="Pladur", pct_beneficio_defecto=Decimal("10.50"))
     Seccion.objects.create(
         codigo="AIS", nombre="Aislamientos", pct_beneficio_defecto=Decimal("4.25"), activa=False
     )
@@ -84,7 +84,7 @@ def test_lista_gerencia_con_boton_nueva_y_menu(cliente_con_rol, tres):
     r = cliente_con_rol("Gerencia").get(LISTA)
     html = r.content.decode()
     assert r.status_code == 200 and "Nueva sección" in html
-    assert codigos(r) == ["AIS", "PT", "PyL"]  # orden por código del modelo
+    assert codigos(r) == ["AIS", "PT", "PYL"]  # orden por código del modelo
     assert "Activa" in html and "Archivada" in html
     assert 'href="/ajustes/empresa/"' in html and 'href="/ajustes/secciones/"' in html  # menú
     assert "breadcrumb" in html and "10,50" in html
@@ -93,11 +93,11 @@ def test_lista_gerencia_con_boton_nueva_y_menu(cliente_con_rol, tres):
 
 def test_lista_busqueda_y_orden(cliente_con_rol, tres):
     c = cliente_con_rol("Gerencia")
-    assert codigos(c.get(LISTA, {"q": "pla"})) == ["PyL"]
+    assert codigos(c.get(LISTA, {"q": "pla"})) == ["PYL"]
     assert codigos(c.get(LISTA, {"q": "zzz"})) == []
-    assert codigos(c.get(LISTA, {"orden": "-codigo"})) == ["PyL", "PT", "AIS"]
-    assert codigos(c.get(LISTA, {"orden": "pct_beneficio_defecto"})) == ["AIS", "PyL", "PT"]
-    assert codigos(c.get(LISTA, {"orden": "campo_inventado"})) == ["AIS", "PT", "PyL"]
+    assert codigos(c.get(LISTA, {"orden": "-codigo"})) == ["PYL", "PT", "AIS"]
+    assert codigos(c.get(LISTA, {"orden": "pct_beneficio_defecto"})) == ["AIS", "PYL", "PT"]
+    assert codigos(c.get(LISTA, {"orden": "campo_inventado"})) == ["AIS", "PT", "PYL"]
 
 
 def test_lista_vacia(cliente_con_rol, db):
@@ -112,10 +112,10 @@ def test_la_lista_no_usa_barra_de_estado(cliente_con_rol, pintura):
 
 # --- Crear y editar ----------------------------------------------------------------------------
 def test_crear_seccion(cliente_con_rol, db):
-    r = cliente_con_rol("Gerencia").post(NUEVA, datos(codigo="PyL", nombre="Pladur"), follow=True)
+    r = cliente_con_rol("Gerencia").post(NUEVA, datos(codigo="PYL", nombre="Pladur"), follow=True)
     assert r.redirect_chain == [(LISTA, 302)]
-    assert "Sección PyL guardada" in r.content.decode()
-    s = Seccion.objects.get(codigo="PyL")
+    assert "Sección PYL guardada" in r.content.decode()
+    s = Seccion.objects.get(codigo="PYL")
     assert s.nombre == "Pladur" and s.pct_beneficio_defecto == Decimal("15.00") and s.activa
     assert s.creado_por.username == "u_Gerencia" and s.history.count() == 1
 
@@ -148,6 +148,7 @@ def test_ficha_inexistente_da_404(cliente_con_rol, db):
         ({"codigo": "PINTU"}, "codigo"),  # más de 4 caracteres
         ({"codigo": "P-T"}, "codigo"),  # carácter no permitido
         ({"codigo": ""}, "codigo"),
+        ({"codigo": "P T"}, "codigo"),
         ({"nombre": ""}, "nombre"),
         ({"pct_beneficio_defecto": "101"}, "pct_beneficio_defecto"),
         ({"pct_beneficio_defecto": "-1"}, "pct_beneficio_defecto"),
@@ -159,6 +160,36 @@ def test_datos_no_validos_no_se_guardan(cliente_con_rol, db, cambio, campo):
     assert r.status_code == 200 and campo in r.context["form"].errors
     assert "invalid-feedback" in r.content.decode()
     assert Seccion.objects.count() == 0
+
+
+def test_codigo_en_minusculas_se_guarda_en_mayusculas(cliente_con_rol, db):
+    cliente_con_rol("Gerencia").post(NUEVA, datos(codigo="pyl", nombre="Pladur"))
+    assert list(Seccion.objects.values_list("codigo", flat=True)) == ["PYL"]
+
+
+def test_codigo_repetido_tambien_en_minusculas(cliente_con_rol, pintura):
+    r = cliente_con_rol("Gerencia").post(NUEVA, datos(codigo="pt", nombre="Otra"))
+    assert r.status_code == 200 and "codigo" in r.context["form"].errors
+    assert Seccion.objects.count() == 1
+
+
+def test_codigo_no_se_puede_cambiar_al_editar(cliente_con_rol, pintura):
+    c = cliente_con_rol("Gerencia")
+    html = c.get(url(pintura.pk)).content.decode()
+    assert "No se puede cambiar después" in html
+    assert 'name="codigo"' in html and "disabled" in html
+    r = c.post(url(pintura.pk), datos(codigo="XX", nombre="Pintura 2"))
+    assert r.status_code == 302
+    pintura.refresh_from_db()
+    assert pintura.codigo == "PT" and pintura.nombre == "Pintura 2"
+    assert not Seccion.objects.filter(codigo="XX").exists()
+
+
+def test_codigo_es_de_solo_lectura_en_el_admin(client, django_user_model, pintura):
+    client.force_login(django_user_model.objects.create_superuser("root", password="x"))
+    html = client.get(f"/admin/empresa/seccion/{pintura.pk}/change/").content.decode()
+    assert 'name="codigo"' not in html
+    assert 'name="codigo"' in client.get("/admin/empresa/seccion/add/").content.decode()
 
 
 def test_codigo_repetido(cliente_con_rol, pintura):

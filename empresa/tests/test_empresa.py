@@ -64,12 +64,25 @@ def test_historial(empresa):
 
 class TestSeccion:
     def test_codigo_valido(self, db):
-        Seccion(codigo="PyL", nombre="Pladur").full_clean()
+        Seccion(codigo="PYL", nombre="Pladur").full_clean()
 
-    @pytest.mark.parametrize("codigo", ["PINTU", "P-T", ""])
+    @pytest.mark.parametrize("codigo", ["PINTU", "P-T", "", "pt", "PyL"])
     def test_codigo_no_valido(self, db, codigo):
         with pytest.raises(ValidationError):
             Seccion(codigo=codigo, nombre="X").full_clean()
+
+    def test_codigo_inmutable_una_vez_creada(self, db):
+        s = Seccion.objects.create(codigo="PT", nombre="Pintura")
+        s.codigo = "PX"
+        with pytest.raises(ValidationError):
+            s.save()
+        assert Seccion.objects.get(pk=s.pk).codigo == "PT"
+
+    def test_se_puede_editar_lo_demas_sin_tocar_el_codigo(self, db):
+        s = Seccion.objects.create(codigo="PT", nombre="Pintura")
+        s.nombre = "Pintura y yesos"
+        s.save()
+        assert Seccion.objects.get(pk=s.pk).nombre == "Pintura y yesos"
 
     def test_fases_suman_100(self, db):
         fases = [

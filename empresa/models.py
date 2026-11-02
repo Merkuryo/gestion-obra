@@ -108,13 +108,13 @@ class Empresa(ModeloAuditado):
 
 
 class Seccion(ModeloAuditado):
-    """Sección o departamento: p. ej. PyL (pladur), PT (pintura)."""
+    """Sección o departamento: p. ej. PYL (pladur), PT (pintura)."""
 
     codigo = models.CharField(
         "código",
         max_length=4,
         unique=True,
-        validators=[RegexValidator(r"^[A-Za-z0-9]{1,4}$", "Hasta 4 letras o números.")],
+        validators=[RegexValidator(r"^[A-Z0-9]{1,4}$", "Hasta 4 letras MAYÚSCULAS o números.")],
     )
     nombre = models.CharField(max_length=100)
     activa = models.BooleanField(default=True)
@@ -134,6 +134,18 @@ class Seccion(ModeloAuditado):
 
     def __str__(self):
         return f"{self.codigo} — {self.nombre}"
+
+    def save(self, *args, **kwargs):
+        # El código es inmutable una vez creada la sección: los documentos se pasan de una
+        # sección a otra, no se renombra la sección.
+        if not self._state.adding:
+            guardadas = type(self).objects.filter(pk=self.pk)
+            original = guardadas.values_list("codigo", flat=True).first()
+            if original is not None and original != self.codigo:
+                raise ValidationError(
+                    {"codigo": "El código de una sección no se puede cambiar una vez creada."}
+                )
+        super().save(*args, **kwargs)
 
     def clean(self):
         if not self.plantilla_fases:

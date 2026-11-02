@@ -1,0 +1,61 @@
+{% comment %}
+  Lista de gestión: búsqueda, cabeceras ordenables, totales al pie.
+  Uso: {% include "componentes/_lista.html" with lista=lista %}  (lista = core.listas.preparar_lista)
+{% endcomment %}
+{% if lista.con_busqueda %}
+<form method="get" class="mb-3" role="search">
+  {% if lista.orden %}<input type="hidden" name="orden" value="{{ lista.orden }}">{% endif %}
+  <div class="input-group" style="max-width: 28rem;">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input type="search" name="q" value="{{ lista.q }}" class="form-control" placeholder="Buscar…" aria-label="Buscar">
+    <button class="btn btn-outline-secondary" type="submit">Buscar</button>
+    {% if lista.q %}<a class="btn btn-outline-secondary" href="?{% if lista.orden %}orden={{ lista.orden }}{% endif %}" title="Quitar búsqueda"><i class="bi bi-x-lg"></i></a>{% endif %}
+  </div>
+</form>
+{% endif %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle bg-body">
+    <thead class="table-light">
+      <tr>
+        {% for c in lista.cabeceras %}
+          <th scope="col"{% if c.numerica %} class="text-end"{% endif %}>
+            {% if c.url_orden %}
+              <a href="{{ c.url_orden }}" class="text-reset text-decoration-none">{{ c.titulo }}
+                {% if c.flecha == "asc" %}<i class="bi bi-caret-up-fill"></i>{% elif c.flecha == "desc" %}<i class="bi bi-caret-down-fill"></i>{% endif %}
+              </a>
+            {% else %}{{ c.titulo }}{% endif %}
+          </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for fila in lista.filas %}
+        <tr>
+          {% for celda in fila.celdas %}
+            <td{% if celda.numerica %} class="cifra"{% endif %}>
+              {% if forloop.first and fila.url %}<a href="{{ fila.url }}">{% endif %}
+              {% if celda.tipo == "badge" %}<span class="badge text-bg-{{ celda.valor.1 }}">{{ celda.valor.0 }}</span>
+              {% elif celda.numerica %}{{ celda.valor|floatformat:celda.formato }}
+              {% else %}{{ celda.valor|default_if_none:"" }}{% endif %}
+              {% if forloop.first and fila.url %}</a>{% endif %}
+            </td>
+          {% endfor %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="{{ lista.cabeceras|length }}" class="text-center text-body-secondary py-4">
+          {% if lista.q %}Ningún resultado para «{{ lista.q }}».{% else %}Todavía no hay registros.{% endif %}
+        </td></tr>
+      {% endfor %}
+    </tbody>
+    {% if lista.totales %}
+    <tfoot class="table-light fw-semibold">
+      <tr>
+        {% for t in lista.totales %}
+          <td{% if t.numerica %} class="cifra"{% endif %}>{% if t %}{{ t.valor|floatformat:t.formato }}{% elif forloop.first %}Total{% endif %}</td>
+        {% endfor %}
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+<p class="text-body-secondary small">{{ lista.num_registros }} registro{{ lista.num_registros|pluralize }}</p>

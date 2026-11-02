@@ -25,12 +25,20 @@ def validar_pct_desvio(pct: Decimal, empresa: Empresa | None = None) -> Decimal:
     return pct
 
 
-def guardar_empresa(empresa: Empresa, usuario) -> Empresa:
-    """Guarda la empresa (alta o edición) con quién y cuándo; historial: simple-history."""
+def guardar_empresa(empresa: Empresa, usuario, quitar_logo: bool = False) -> Empresa:
+    """Guarda la empresa (alta o edición) con quién y cuándo; historial: simple-history.
+
+    Con `quitar_logo` vacía el campo y borra el archivo del disco una vez guardada la empresa.
+    """
     if empresa._state.adding:
         empresa.creado_por = usuario
     empresa.modificado_por = usuario
+    logo_a_borrar = empresa.logo.name if quitar_logo and empresa.logo else None
+    if logo_a_borrar:
+        empresa.logo = ""
     empresa.save()
+    if logo_a_borrar:
+        empresa.logo.storage.delete(logo_a_borrar)
     return empresa
 
 

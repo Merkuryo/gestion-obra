@@ -36,7 +36,8 @@ class FichaEmpresa(ConPermiso, View):
     def post(self, request):
         form = EmpresaForm(request.POST, request.FILES, instance=Empresa.actual())
         if form.is_valid():
-            servicios.guardar_empresa(form.save(commit=False), request.user)
+            quitar_logo = form.cleaned_data.get("quitar_logo", False)
+            servicios.guardar_empresa(form.save(commit=False), request.user, quitar_logo)
             messages.success(request, "Datos de la empresa guardados.")
             return redirect("empresa:ficha")
         return self._pintar(request, form)

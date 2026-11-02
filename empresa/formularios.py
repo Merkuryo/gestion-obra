@@ -21,7 +21,7 @@ GRUPOS = [
             "web",
         ],
     ),
-    ("Imagen y documentos", ["logo", "color_primario", "iban", "pie_legal"]),
+    ("Imagen y documentos", ["logo", "quitar_logo", "color_primario", "iban", "pie_legal"]),
     ("Códigos analíticos", ["ancho_cliente", "ancho_obra"]),
     (
         "Parámetros económicos",
@@ -40,12 +40,13 @@ GRUPOS = [
 class EmpresaForm(FormularioBootstrap, forms.ModelForm):
     # Sin esquema (www.demo.es) se interpreta como https
     web = forms.URLField(required=False, assume_scheme="https")
+    quitar_logo = forms.BooleanField(required=False, label="Quitar el logo actual")
 
     grupos = GRUPOS
 
     class Meta:
         model = Empresa
-        fields = [campo for _, campos in GRUPOS for campo in campos]
+        fields = [c for _, campos in GRUPOS for c in campos if c != "quitar_logo"]
         widgets = {
             "logo": forms.FileInput(attrs={"accept": ".png,.jpg,.jpeg,image/png,image/jpeg"}),
             "color_primario": ColorInput(),
@@ -56,12 +57,20 @@ class EmpresaForm(FormularioBootstrap, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["logo"].validators.append(validar_logo)
         self.fields["logo"].help_text = "PNG o JPG, máximo 2 MB. No se admite SVG."
+        if not self.instance.logo:
+            del self.fields["quitar_logo"]  # nada que quitar
         # Los anchos de código se eligen al instalar y quedan fijos: cambiarlos rompería los códigos.
         # Un campo desactivado ignora lo que llegue en el POST y conserva el valor guardado.
         if self.instance.pk:
             for nombre in ("ancho_cliente", "ancho_obra"):
                 self.fields[nombre].disabled = True
                 self.fields[nombre].help_text = "Fijo tras la instalación."
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("quitar_logo") and self.files.get("logo"):
+            self.add_error("quitar_logo", "Sube un logo nuevo o quita el actual, no las dos cosas.")
+        return cleaned
 
 
 class SeccionForm(FormularioBootstrap, forms.ModelForm):

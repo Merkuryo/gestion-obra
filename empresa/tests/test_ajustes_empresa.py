@@ -236,3 +236,52 @@ def test_guardar_sin_subir_logo_conserva_el_anterior(cliente_con_rol, empresa):
 
 def test_url_inversa():
     assert reverse("empresa:ficha") == URL
+
+
+# --- Quitar el logo ------------------------------------------------------------------------------
+def test_sin_logo_no_se_ofrece_quitarlo(cliente_con_rol, empresa):
+    html = cliente_con_rol("Gerencia").get(URL).content.decode()
+    assert "Quitar el logo actual" not in html
+
+
+def test_con_logo_se_ofrece_quitarlo(cliente_con_rol, empresa):
+    c = cliente_con_rol("Gerencia")
+    c.post(URL, datos(logo=imagen()))
+    assert "Quitar el logo actual" in c.get(URL).content.decode()
+
+
+def test_quitar_logo_borra_el_archivo_y_la_referencia(cliente_con_rol, empresa):
+    c = cliente_con_rol("Gerencia")
+    c.post(URL, datos(logo=imagen()))
+    ruta = Empresa.actual().logo.path
+    assert os.path.exists(ruta)
+    r = c.post(URL, datos(quitar_logo="on"), follow=True)
+    assert r.status_code == 200 and "Datos de la empresa guardados" in r.content.decode()
+    assert not Empresa.actual().logo and not os.path.exists(ruta)
+    assert "Sin logo" in r.content.decode() and "Quitar el logo actual" not in r.content.decode()
+    assert Empresa.actual().history.count() == 3  # alta del logo + quitarlo
+
+
+def test_quitar_logo_no_toca_otros_datos(cliente_con_rol, empresa):
+    c = cliente_con_rol("Gerencia")
+    c.post(URL, datos(logo=imagen(), telefono="930000000"))
+    c.post(URL, datos(telefono="930000000", quitar_logo="on"))
+    e = Empresa.actual()
+    assert e.telefono == "930000000" and e.razon_social == "Pinturas Demo SL"
+
+
+def test_subir_y_quitar_a_la_vez_es_un_error(cliente_con_rol, empresa):
+    c = cliente_con_rol("Gerencia")
+    c.post(URL, datos(logo=imagen()))
+    anterior = Empresa.actual().logo.name
+    r = c.post(URL, datos(logo=imagen("otro.png"), quitar_logo="on"))
+    assert r.status_code == 200 and "quitar_logo" in r.context["form"].errors
+    assert Empresa.actual().logo.name == anterior and os.path.exists(Empresa.actual().logo.path)
+
+
+def test_administracion_no_puede_quitar_el_logo(client, usuario_con_rol, empresa):
+    empresa.logo.save("logo.png", imagen(), save=True)
+    client.force_login(usuario_con_rol("Administración"))
+    assert client.post(URL, datos(quitar_logo="on")).status_code == 403
+    empresa.refresh_from_db()
+    assert empresa.logo and os.path.exists(empresa.logo.path)

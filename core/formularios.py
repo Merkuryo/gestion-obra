@@ -7,6 +7,8 @@ mostrar la ficha en solo lectura. Uso:
         grupos = [("General", ["codigo", "nombre"]), ("Económico", ["pct_beneficio_defecto"])]
 """
 
+from django import forms
+
 
 class FormularioBootstrap:
     # Lista de (título, [nombres de campo]). Con más de un grupo se muestran pestañas.
@@ -65,3 +67,9 @@ class FormularioBootstrap:
 
     def campos_ocultos(self):
         return [c for c in self if c.is_hidden]
+
+
+class ColorInput(forms.TextInput):
+    """Selector de color del navegador (<input type="color">) para valores #RRGGBB."""
+
+    input_type = "color"

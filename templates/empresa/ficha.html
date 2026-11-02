@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titulo %}Empresa · Ajustes{% endblock %}
+{% block menu_modulo %}{% include "empresa/_menu.html" with activo="empresa" %}{% endblock %}
+{% block contenido %}
+<h1 class="h4 mb-3">Empresa</h1>
+{% if not form %}
+  <div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle"></i>
+    La empresa aún no está configurada. Pide a Gerencia que la dé de alta.
+  </div>
+{% else %}
+  {% if not ficha %}
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle"></i> Es lo primero que se configura. Los anchos de código solo se eligen ahora.
+    </div>
+  {% else %}
+    <div class="card mb-3"><div class="card-body d-flex align-items-center gap-3">
+      {% if ficha.logo %}<img src="{{ ficha.logo.url }}" alt="Logo" height="48">
+      {% else %}<span class="text-body-secondary"><i class="bi bi-image"></i> Sin logo</span>{% endif %}
+      <div class="fw-semibold">{{ ficha }}</div>
+      <span class="ms-auto d-flex align-items-center gap-2 text-body-secondary">
+        Color corporativo
+        <span class="border rounded d-inline-block" style="width: 2rem; height: 1.25rem; background: {{ ficha.color_primario }};" title="{{ ficha.color_primario }}"></span>
+      </span>
+    </div></div>
+  {% endif %}
+  {% include "componentes/_formulario.html" with form=form url_descartar=request.path %}
+{% endif %}
+{% endblock %}

@@ -23,3 +23,12 @@ def validar_pct_desvio(pct: Decimal, empresa: Empresa | None = None) -> Decimal:
     if pct < 0 or pct > empresa.pct_desvio_tope:
         raise ValidationError(f"El desvío debe estar entre 0 y {empresa.pct_desvio_tope} %.")
     return pct
+
+
+def guardar_empresa(empresa: Empresa, usuario) -> Empresa:
+    """Guarda la empresa (alta o edición) con quién y cuándo; historial: simple-history."""
+    if empresa._state.adding:
+        empresa.creado_por = usuario
+    empresa.modificado_por = usuario
+    empresa.save()
+    return empresa

@@ -47,3 +47,23 @@ def es_nif_cif_valido(valor: str) -> bool:
 def validar_nif_cif(valor: str) -> None:
     if not es_nif_cif_valido(valor):
         raise ValidationError("CIF/NIF/NIE no válido: %(valor)s", params={"valor": valor})
+
+
+LOGO_MAX_BYTES = 2 * 1024 * 1024
+LOGO_EXTENSIONES = (".png", ".jpg", ".jpeg")
+LOGO_FORMATOS = ("PNG", "JPEG")
+
+
+def validar_logo(archivo):
+    """Logo de empresa: solo PNG o JPG, máximo 2 MB. El SVG se rechaza (puede llevar scripts).
+
+    Se comprueba la extensión y el formato real de la imagen (Pillow), no solo el nombre.
+    Se aplica a archivos recién subidos por formulario (ya pasados por forms.ImageField).
+    """
+    if archivo.size > LOGO_MAX_BYTES:
+        raise ValidationError("El logo no puede pesar más de 2 MB.")
+    if not archivo.name.lower().endswith(LOGO_EXTENSIONES):
+        raise ValidationError("El logo debe ser un archivo PNG o JPG (no se admite SVG).")
+    formato = getattr(getattr(archivo, "image", None), "format", None)
+    if formato not in LOGO_FORMATOS:
+        raise ValidationError("El logo debe ser una imagen PNG o JPG válida.")

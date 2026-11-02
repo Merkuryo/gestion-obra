@@ -91,3 +91,6 @@ LOGOUT_REDIRECT_URL = "login"
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = env("EMAIL_HOST", default="mailpit")
 EMAIL_PORT = env.int("EMAIL_PORT", default=1025)
+
+# Los campos URL sin esquema se interpretan como https (será el valor por defecto en Django 6.0)
+FORMS_URLFIELD_ASSUME_HTTPS = True

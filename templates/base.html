@@ -60,7 +60,7 @@
   </nav>
   {% endif %}
   <main class="container-xl py-4">
-    {% block migas %}{% endblock %}
+    {% block migas %}{% include "componentes/_migas.html" %}{% endblock %}
     {% for m in messages %}<div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>{% endfor %}
     {% block contenido %}{% endblock %}
   </main>

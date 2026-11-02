@@ -38,6 +38,9 @@ GRUPOS = [
 
 
 class EmpresaForm(FormularioBootstrap, forms.ModelForm):
+    # Sin esquema (www.demo.es) se interpreta como https
+    web = forms.URLField(required=False, assume_scheme="https")
+
     grupos = GRUPOS
 
     class Meta:

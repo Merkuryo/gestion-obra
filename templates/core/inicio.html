@@ -1,10 +1,15 @@
 {% extends "base.html" %}
+{% load permisos %}
 {% block contenido %}
   {% if not empresa %}
     <div class="alert alert-warning">
       <i class="bi bi-exclamation-triangle"></i>
       La empresa aún no está configurada. Es lo primero:
-      <a href="{% url 'admin:empresa_empresa_add' %}" class="alert-link">dar de alta la empresa</a>.
+      {% if user|puede_ver:"ajustes" %}
+        <a href="{% url 'empresa:ficha' %}" class="alert-link">dar de alta la empresa en Ajustes</a>.
+      {% else %}
+        pide a Gerencia que la dé de alta.
+      {% endif %}
     </div>
   {% endif %}
   <div class="lanzador d-flex flex-wrap justify-content-center gap-4 mt-4">

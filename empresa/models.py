@@ -71,7 +71,9 @@ class Empresa(ModeloAuditado):
     dias_aviso_pago = models.PositiveSmallIntegerField(
         "plazo máximo de pago para aviso (días)", default=60
     )
-    umbral_aviso_coste_hora = campo_pct("aviso coste hora frente a media 3 meses (%)", "15.00")
+    umbral_aviso_coste_hora = campo_pct(
+        "aviso de desviación del coste hora frente al último mes cerrado (%)", "15.00"
+    )
 
     history = HistoricalRecords()
 

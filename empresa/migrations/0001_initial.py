@@ -186,7 +186,7 @@ class Migration(migrations.Migration):
                             django.core.validators.MinValueValidator(Decimal("0")),
                             django.core.validators.MaxValueValidator(Decimal("100")),
                         ],
-                        verbose_name="aviso coste hora frente a media 3 meses (%)",
+                        verbose_name="aviso de desviación del coste hora frente al último mes cerrado (%)",
                     ),
                 ),
                 ("history_id", models.AutoField(primary_key=True, serialize=False)),
@@ -592,7 +592,7 @@ class Migration(migrations.Migration):
                             django.core.validators.MinValueValidator(Decimal("0")),
                             django.core.validators.MaxValueValidator(Decimal("100")),
                         ],
-                        verbose_name="aviso coste hora frente a media 3 meses (%)",
+                        verbose_name="aviso de desviación del coste hora frente al último mes cerrado (%)",
                     ),
                 ),
                 (

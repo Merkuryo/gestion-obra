@@ -21,7 +21,7 @@ Esta aplicación une todo el ciclo económico de la obra, con **precios calculad
 
 ### Previstas
 - **Clientes, subcontratas y proveedores**, con condiciones comerciales que se heredan de la empresa al cliente y del cliente a la obra.
-- **Coste hora real:** gastos de estructura, calendario laboral y cierre mensual. El coste hora del mes cerrado sirve para presupuestar el siguiente.
+- **Coste hora en tiempo real:** cada alta o baja de personal y cada gasto de estructura actualiza al momento el coste hora con el que se presupuesta. El cierre mensual registra el coste real para compararlo con el previsto.
 - **Presupuestador:** banco de precios propio, importación de presupuestos en formato BC3 (FIEBDC-3) y en hoja de cálculo, descompuestos con rendimientos, márgenes, desplazamientos y avisos cuando el precio no cubre el coste.
 - **Ofertas en PDF** con cláusulas reutilizables, y seguimiento comercial de las ofertas enviadas.
 - **Obras:** alta de la obra al aceptar el presupuesto, con su código analítico.

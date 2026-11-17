@@ -17,7 +17,7 @@ services:
     volumes:
       - .:/app
     ports:
-      # 8001 en tu equipo para no chocar con otro proyecto (que usa 8000). Cámbialo con WEB_PORT en .env
+      # 8001 en tu equipo para no chocar con otro servicio en el 8000. Cámbialo con WEB_PORT en .env
       - "${WEB_PORT:-8001}:8000"
     depends_on:
       db:

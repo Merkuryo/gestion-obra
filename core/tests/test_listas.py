@@ -24,9 +24,9 @@ COLUMNAS = [
 @pytest.fixture
 def secciones(db):
     for codigo, nombre, pct, activa in [
-        ("PT", "Pintura", "15.00", True),
-        ("PYL", "Pladur", "10.50", True),
-        ("AIS", "Aislamientos", "4.25", False),
+        ("INS", "Instalaciones", "15.00", True),
+        ("ALB", "Albañilería", "10.50", True),
+        ("CAR", "Carpintería", "4.25", False),
     ]:
         Seccion.objects.create(
             codigo=codigo, nombre=nombre, pct_beneficio_defecto=Decimal(pct), activa=activa
@@ -45,9 +45,9 @@ def codigos(resultado):
 
 
 def test_orden_ascendente_y_descendente(secciones):
-    assert codigos(lista("?orden=codigo")) == ["AIS", "PT", "PYL"]
-    assert codigos(lista("?orden=-codigo")) == ["PYL", "PT", "AIS"]
-    assert codigos(lista("?orden=pct_beneficio_defecto")) == ["AIS", "PYL", "PT"]
+    assert codigos(lista("?orden=codigo")) == ["ALB", "CAR", "INS"]
+    assert codigos(lista("?orden=-codigo")) == ["INS", "CAR", "ALB"]
+    assert codigos(lista("?orden=pct_beneficio_defecto")) == ["CAR", "ALB", "INS"]
 
 
 def test_orden_por_campo_no_permitido_se_ignora(secciones):
@@ -66,14 +66,14 @@ def test_cabecera_alterna_el_sentido(secciones):
 
 
 def test_busqueda_por_codigo_o_nombre(secciones):
-    assert codigos(lista("?q=pint")) == ["PT"]
-    assert codigos(lista("?q=PYL")) == ["PYL"]
+    assert codigos(lista("?q=inst")) == ["INS"]
+    assert codigos(lista("?q=ALB")) == ["ALB"]
     assert codigos(lista("?q=zzz")) == []
 
 
 def test_busqueda_exige_todas_las_palabras(secciones):
-    assert codigos(lista("?q=pt pintura")) == ["PT"]
-    assert codigos(lista("?q=pt pladur")) == []
+    assert codigos(lista("?q=ins instalaciones")) == ["INS"]
+    assert codigos(lista("?q=ins carp")) == []
 
 
 def test_totales_decimal_exacto_y_recuento(secciones):
@@ -84,7 +84,7 @@ def test_totales_decimal_exacto_y_recuento(secciones):
 
 
 def test_totales_siguen_a_la_busqueda(secciones):
-    r = lista("?q=p")  # PT y PYL; "Aislamientos" no contiene "p"
+    r = lista("?q=al")  # INS y ALB; "Carpintería" no contiene "al"
     assert r["num_registros"] == 2
     assert r["totales"][2]["valor"] == Decimal("25.50")
 

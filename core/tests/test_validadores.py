@@ -11,7 +11,7 @@ from core.validadores import es_nif_cif_valido, validar_nif_cif
         "X1234567L",  # NIE
         "B12345674",  # CIF de sociedad limitada (control numérico)
         "b-1234567-4",  # con guiones y minúsculas
-        "Q1234567D",  # organismo público (control con letra)
+        "Q1234567D",  # organismo público ficticio (control con letra)
     ],
 )
 def test_documentos_validos(valor):

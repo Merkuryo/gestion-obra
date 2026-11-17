@@ -13,7 +13,7 @@ URL = "/ajustes/empresa/"
 
 def datos(**cambios):
     base = {
-        "razon_social": "Pinturas Demo SL",
+        "razon_social": "Construcciones Ejemplo SL",
         "nombre_comercial": "Demo",
         "cif": "B12345674",
         "color_primario": "#1F6FEB",
@@ -71,7 +71,7 @@ def test_administracion_y_ot_ven_en_solo_lectura(cliente_con_rol, empresa, rol):
     r = cliente_con_rol(rol).get(URL)
     html = r.content.decode()
     assert r.status_code == 200
-    assert "Pinturas Demo SL" in html and "Solo lectura" in html
+    assert "Construcciones Ejemplo SL" in html and "Solo lectura" in html
     assert "Guardar" not in html and "disabled" in html
 
 
@@ -79,7 +79,7 @@ def test_administracion_no_puede_guardar(cliente_con_rol, empresa):
     r = cliente_con_rol("Administración").post(URL, datos(razon_social="Hackeada SL"))
     assert r.status_code == 403
     empresa.refresh_from_db()
-    assert empresa.razon_social == "Pinturas Demo SL"
+    assert empresa.razon_social == "Construcciones Ejemplo SL"
 
 
 def test_gerencia_ve_el_formulario_con_pestanas(cliente_con_rol, empresa):
@@ -101,11 +101,13 @@ def test_superusuario_puede_editar(client, django_user_model, empresa):
 # --- Guardado ----------------------------------------------------------------------------------
 def test_gerencia_guarda_y_queda_historial(cliente_con_rol, empresa):
     c = cliente_con_rol("Gerencia")
-    r = c.post(URL, datos(razon_social="Pinturas Nuevas SL", telefono="930000000"), follow=True)
+    r = c.post(
+        URL, datos(razon_social="Construcciones Renovadas SL", telefono="930000000"), follow=True
+    )
     assert r.redirect_chain == [(URL, 302)]
     assert "Datos de la empresa guardados" in r.content.decode()
     empresa.refresh_from_db()
-    assert empresa.razon_social == "Pinturas Nuevas SL" and empresa.telefono == "930000000"
+    assert empresa.razon_social == "Construcciones Renovadas SL" and empresa.telefono == "930000000"
     assert empresa.modificado_por.username == "u_Gerencia"
     assert empresa.history.count() == 2
 
@@ -165,7 +167,7 @@ def test_datos_no_validos_no_se_guardan(cliente_con_rol, empresa, cambio, campo)
     assert campo in r.context["form"].errors
     assert "invalid-feedback" in r.content.decode()
     empresa.refresh_from_db()
-    assert empresa.razon_social == "Pinturas Demo SL"
+    assert empresa.razon_social == "Construcciones Ejemplo SL"
 
 
 # --- Logo: solo PNG/JPG, máximo 2 MB, sin SVG ----------------------------------------------------
@@ -267,7 +269,7 @@ def test_quitar_logo_no_toca_otros_datos(cliente_con_rol, empresa):
     c.post(URL, datos(logo=imagen(), telefono="930000000"))
     c.post(URL, datos(telefono="930000000", quitar_logo="on"))
     e = Empresa.actual()
-    assert e.telefono == "930000000" and e.razon_social == "Pinturas Demo SL"
+    assert e.telefono == "930000000" and e.razon_social == "Construcciones Ejemplo SL"
 
 
 def test_subir_y_quitar_a_la_vez_es_un_error(cliente_con_rol, empresa):

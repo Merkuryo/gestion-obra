@@ -82,7 +82,7 @@ class SeccionForm(FormularioBootstrap, forms.ModelForm):
         widget=forms.TextInput(attrs={"class": "text-uppercase", "autocomplete": "off"}),
     )
 
-    # Las fases por manos (plantilla_fases) aún no tienen pantalla propia: se editan en el admin.
+    # Las fases de avance (plantilla_fases) aún no tienen pantalla propia: se editan en el admin.
     class Meta:
         model = Seccion
         fields = ["codigo", "nombre", "pct_beneficio_defecto", "activa"]

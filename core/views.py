@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from .permisos import puede_ver
 
-# Lanzador de módulos de gestión: nombre, icono de Bootstrap Icons, fase, url, módulo
+# Lanzador de módulos: nombre, icono de Bootstrap Icons, fase, url, módulo
 # de permisos (core/permisos.py; None = aún sin reglas). Un módulo sin url aún no está
 # construido y se muestra en gris.
 MODULOS = [

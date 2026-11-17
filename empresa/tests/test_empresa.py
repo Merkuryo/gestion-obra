@@ -64,36 +64,51 @@ def test_historial(empresa):
 
 class TestSeccion:
     def test_codigo_valido(self, db):
-        Seccion(codigo="PYL", nombre="Pladur").full_clean()
+        Seccion(codigo="ALB", nombre="Albañilería").full_clean()
 
-    @pytest.mark.parametrize("codigo", ["PINTU", "P-T", "", "pt", "PyL"])
+    @pytest.mark.parametrize("codigo", ["INSTA", "I-N", "", "ins", "InS"])
     def test_codigo_no_valido(self, db, codigo):
         with pytest.raises(ValidationError):
             Seccion(codigo=codigo, nombre="X").full_clean()
 
     def test_codigo_inmutable_una_vez_creada(self, db):
-        s = Seccion.objects.create(codigo="PT", nombre="Pintura")
-        s.codigo = "PX"
+        s = Seccion.objects.create(codigo="INS", nombre="Instalaciones")
+        s.codigo = "IX"
         with pytest.raises(ValidationError):
             s.save()
-        assert Seccion.objects.get(pk=s.pk).codigo == "PT"
+        assert Seccion.objects.get(pk=s.pk).codigo == "INS"
 
     def test_se_puede_editar_lo_demas_sin_tocar_el_codigo(self, db):
-        s = Seccion.objects.create(codigo="PT", nombre="Pintura")
-        s.nombre = "Pintura y yesos"
+        s = Seccion.objects.create(codigo="ALB", nombre="Albañilería")
+        s.nombre = "Albañilería y reformas"
         s.save()
-        assert Seccion.objects.get(pk=s.pk).nombre == "Pintura y yesos"
+        assert Seccion.objects.get(pk=s.pk).nombre == "Albañilería y reformas"
 
-    def test_fases_suman_100(self, db):
-        fases = [
-            {"nombre": "Imprimación", "pct": 30},
-            {"nombre": "1.ª mano", "pct": 35},
-            {"nombre": "2.ª mano", "pct": 35},
-        ]
-        Seccion(codigo="PT", nombre="Pintura", plantilla_fases=fases).full_clean()
+    @pytest.mark.parametrize(
+        "codigo, nombre, fases",
+        [
+            (
+                "INS",
+                "Instalaciones",
+                [("Replanteo", 10), ("Tendido", 40), ("Conexionado", 30), ("Pruebas", 20)],
+            ),
+            ("ALB", "Albañilería", [("Replanteo", 10), ("Ejecución", 75), ("Remates", 15)]),
+            ("PT", "Pintura", [("Imprimación", 30), ("1.ª mano", 35), ("2.ª mano", 35)]),
+        ],
+    )
+    def test_fases_de_varios_oficios_suman_100(self, db, codigo, nombre, fases):
+        plantilla = [{"nombre": n, "pct": p} for n, p in fases]
+        Seccion(codigo=codigo, nombre=nombre, plantilla_fases=plantilla).full_clean()
+
+    def test_seccion_sin_fases_es_valida(self, db):
+        s = Seccion.objects.create(codigo="CAR", nombre="Carpintería")
+        assert s.plantilla_fases == []
+        s.full_clean()
 
     def test_fases_que_no_suman_100(self, db):
         with pytest.raises(ValidationError):
             Seccion(
-                codigo="PT", nombre="Pintura", plantilla_fases=[{"nombre": "Única", "pct": 90}]
+                codigo="INS",
+                nombre="Instalaciones",
+                plantilla_fases=[{"nombre": "Única", "pct": 90}],
             ).full_clean()

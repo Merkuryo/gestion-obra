@@ -108,7 +108,8 @@ class Empresa(ModeloAuditado):
 
 
 class Seccion(ModeloAuditado):
-    """Sección o departamento: p. ej. PYL (pladur), PT (pintura)."""
+    """Sección o departamento. Las define cada empresa según sus oficios, p. ej.
+    ALB (albañilería), INS (instalaciones), CAR (carpintería), PYL (pladur), PT (pintura)."""
 
     codigo = models.CharField(
         "código",
@@ -122,7 +123,10 @@ class Seccion(ModeloAuditado):
     plantilla_fases = models.JSONField(
         default=list,
         blank=True,
-        help_text='Fases por manos, p. ej. [{"nombre": "Imprimación", "pct": 30}, …]',
+        help_text=(
+            'Fases de avance, opcionales; p. ej. [{"nombre": "Replanteo", "pct": 10}, …]. '
+            "Vacía si la sección no usa fases."
+        ),
     )
 
     history = HistoricalRecords()

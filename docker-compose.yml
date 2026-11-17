@@ -13,7 +13,8 @@ services:
   web:
     build: .
     env_file: .env
-    command: python manage.py runserver 0.0.0.0:8000
+    # Aplica las migraciones pendientes y arranca el servidor de desarrollo.
+    command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
     ports:

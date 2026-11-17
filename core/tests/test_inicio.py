@@ -51,5 +51,11 @@ def test_superusuario_ve_ajustes_y_admin_de_django(client, django_user_model, em
 
 
 def test_ajustes_es_el_unico_modulo_con_permiso_por_ahora():
-    con_permiso = [m[0] for m in MODULOS if m[4]]
+    con_permiso = [nombre for nombre, _icono, _url, permiso in MODULOS if permiso]
     assert con_permiso == ["Ajustes"]
+
+
+def test_modulos_sin_construir_salen_como_proximamente(cliente_con_rol, empresa):
+    html = cliente_con_rol("Gerencia").get("/").content.decode()
+    assert "Presupuestos" in html and "próximamente" in html and 'title="Próximamente"' in html
+    assert "fase" not in html.lower()

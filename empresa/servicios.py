@@ -18,7 +18,10 @@ def obtener_empresa() -> Empresa:
 
 
 def validar_pct_desvio(pct: Decimal, empresa: Empresa | None = None) -> Decimal:
-    """Comprueba que un % de desvío (imprevistos) no supere el tope de la empresa. Devuelve el valor."""
+    """Comprueba que un % de desvío (imprevistos) no supere el tope de la empresa.
+
+    Devuelve el valor.
+    """
     empresa = empresa or obtener_empresa()
     if pct < 0 or pct > empresa.pct_desvio_tope:
         raise ValidationError(f"El desvío debe estar entre 0 y {empresa.pct_desvio_tope} %.")
@@ -52,7 +55,10 @@ def guardar_seccion(seccion: Seccion, usuario) -> Seccion:
 
 
 def archivar_seccion(seccion: Seccion, usuario) -> Seccion:
-    """Una sección no se borra: se archiva. Error claro si ya lo estaba."""
+    """Una sección no se borra, se archiva: sus documentos siguen apuntando a ella.
+
+    Da un error claro si ya estaba archivada.
+    """
     if not seccion.activa:
         raise ValidationError(f"La sección {seccion.codigo} ya está archivada.")
     seccion.activa = False

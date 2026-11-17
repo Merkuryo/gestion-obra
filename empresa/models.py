@@ -124,7 +124,8 @@ class Seccion(ModeloAuditado):
         default=list,
         blank=True,
         help_text=(
-            'Fases de avance, opcionales; p. ej. [{"nombre": "Replanteo", "pct": 10}, …]. '
+            "Fases de avance para certificar una partida por partes, opcionales; "
+            'p. ej. [{"nombre": "Replanteo", "pct": 10}, …]. Los % deben sumar 100. '
             "Vacía si la sección no usa fases."
         ),
     )

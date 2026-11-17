@@ -59,7 +59,8 @@ class EmpresaForm(FormularioBootstrap, forms.ModelForm):
         self.fields["logo"].help_text = "PNG o JPG, máximo 2 MB. No se admite SVG."
         if not self.instance.logo:
             del self.fields["quitar_logo"]  # nada que quitar
-        # Los anchos de código se eligen al instalar y quedan fijos: cambiarlos rompería los códigos.
+        # Los anchos de código se eligen al instalar y quedan fijos: cambiarlos rompería la lectura
+        # de los códigos ya asignados.
         # Un campo desactivado ignora lo que llegue en el POST y conserva el valor guardado.
         if self.instance.pk:
             for nombre in ("ancho_cliente", "ancho_obra"):

@@ -1,4 +1,7 @@
-"""Roles de usuario (grupos de Django). Los permisos de cada rol por módulo están en core/permisos.py."""
+"""Roles de usuario (grupos de Django).
+
+Los permisos de cada rol por módulo están en core/permisos.py.
+"""
 
 GERENCIA = "Gerencia"
 ADMINISTRACION = "Administración"

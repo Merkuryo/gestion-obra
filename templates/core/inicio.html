@@ -13,7 +13,7 @@
     </div>
   {% endif %}
   <div class="lanzador d-flex flex-wrap justify-content-center gap-4 mt-4">
-    {% for nombre, icono, fase, url in modulos %}
+    {% for nombre, icono, url in modulos %}
       <a class="modulo text-center{% if not url %} inactivo{% endif %}" href="{{ url|default:'#' }}"
          title="{% if url %}{{ nombre }}{% else %}Próximamente{% endif %}">
         <div class="icono"><i class="bi {{ icono }}"></i></div>

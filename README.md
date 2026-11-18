@@ -33,11 +33,20 @@ Esta aplicación une todo el ciclo económico de la obra, con **precios calculad
 
 ## Capturas
 
-> *Pendiente de añadir.*
+Datos ficticios cargados con `python manage.py datos_demo`.
 
-<!-- CAPTURA: pantalla de inicio con el lanzador de módulos -->
-<!-- CAPTURA: ficha de la empresa (logo y color corporativo) -->
-<!-- CAPTURA: lista de secciones con búsqueda y totales -->
+![Pantalla de inicio con el lanzador de módulos](docs/capturas/01-inicio.png)
+*Inicio: lanzador de módulos según el rol; los que aún no existen aparecen como «próximamente».*
+
+![Ficha de la empresa con el color corporativo](docs/capturas/02-empresa.png)
+*Ficha de la empresa: logo y color corporativo aplicado a toda la interfaz.*
+
+![Lista de secciones con búsqueda y estados](docs/capturas/03-secciones.png)
+*Secciones: lista con búsqueda, beneficio objetivo y estado (activa o archivada).*
+
+![Ficha de una sección](docs/capturas/04-seccion-ficha.png)
+*Ficha de sección: código que no cambia una vez creada, beneficio objetivo y opción de archivar.*
+
 <!-- CAPTURA: presupuestador (cuando esté disponible) -->
 
 ## Tecnología

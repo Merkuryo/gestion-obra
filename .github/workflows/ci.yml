@@ -23,8 +23,8 @@ jobs:
       DJANGO_SECRET_KEY: ci-no-secreto
       DATABASE_URL: postgres://obra:obra@localhost:5432/obra
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip

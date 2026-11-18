@@ -5,3 +5,9 @@ staticfiles
 __pycache__
 .pytest_cache
 .ruff_cache
+.github
+CLAUDE.md
+.claude
+.vscode
+.devcontainer
+.privado

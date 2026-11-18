@@ -1,5 +1,5 @@
-{% load static %}{% comment %}
-  PLANTILLA BASE ÚNICA (estilo un curso): todas las páginas hacen {% extends "base.html" %}
+{% load static permisos %}{% comment %}
+  PLANTILLA BASE ÚNICA: todas las páginas hacen {% extends "base.html" %}
   y solo rellenan bloques. La barra superior, el menú de usuario y los scripts viven aquí.
   Bloques: titulo · cabecera (CSS extra) · menu_modulo (menú del módulo en la barra) ·
            migas (migas de pan) · contenido · scripts (JS extra)
@@ -52,7 +52,8 @@
         <i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}
       </button>
       <ul class="dropdown-menu dropdown-menu-end">
-        {% if user.is_staff %}<li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-gear"></i> Ajustes</a></li>{% endif %}
+        {% if user|puede_ver:"ajustes" %}<li><a class="dropdown-item" href="{% url 'empresa:inicio' %}"><i class="bi bi-gear"></i> Ajustes</a></li>{% endif %}
+        {% if user.is_staff %}<li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-tools"></i> Admin de Django</a></li>{% endif %}
         <li><form method="post" action="{% url 'logout' %}">{% csrf_token %}
           <button class="dropdown-item"><i class="bi bi-box-arrow-right"></i> Salir</button></form></li>
       </ul>
@@ -60,7 +61,7 @@
   </nav>
   {% endif %}
   <main class="container-xl py-4">
-    {% block migas %}{% endblock %}
+    {% block migas %}{% include "componentes/_migas.html" %}{% endblock %}
     {% for m in messages %}<div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>{% endfor %}
     {% block contenido %}{% endblock %}
   </main>

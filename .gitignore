@@ -15,3 +15,10 @@ staticfiles/
 datos_privados/
 *.bc3
 !tests/fixtures/**/*.bc3
+
+# Solo la aplicación va al repositorio: herramientas y documentación interna, fuera
+CLAUDE.md
+.claude/
+.vscode/
+.devcontainer/
+.privado/

@@ -57,3 +57,6 @@ class EmpresaAdmin(SimpleHistoryAdmin):
 class SeccionAdmin(SimpleHistoryAdmin):
     list_display = ("codigo", "nombre", "pct_beneficio_defecto", "activa")
     list_filter = ("activa",)
+
+    def get_readonly_fields(self, request, obj=None):
+        return ("codigo",) if obj else ()  # inmutable una vez creada

@@ -71,7 +71,9 @@ class Empresa(ModeloAuditado):
     dias_aviso_pago = models.PositiveSmallIntegerField(
         "plazo máximo de pago para aviso (días)", default=60
     )
-    umbral_aviso_coste_hora = campo_pct("aviso coste hora frente a media 3 meses (%)", "15.00")
+    umbral_aviso_coste_hora = campo_pct(
+        "aviso de desviación del coste hora frente al último mes cerrado (%)", "15.00"
+    )
 
     history = HistoricalRecords()
 
@@ -108,13 +110,14 @@ class Empresa(ModeloAuditado):
 
 
 class Seccion(ModeloAuditado):
-    """Sección o departamento: p. ej. PyL (pladur), PT (pintura)."""
+    """Sección o departamento. Las define cada empresa según sus oficios, p. ej.
+    ALB (albañilería), INS (instalaciones), CAR (carpintería), PYL (pladur), PT (pintura)."""
 
     codigo = models.CharField(
         "código",
         max_length=4,
         unique=True,
-        validators=[RegexValidator(r"^[A-Za-z0-9]{1,4}$", "Hasta 4 letras o números.")],
+        validators=[RegexValidator(r"^[A-Z0-9]{1,4}$", "Hasta 4 letras MAYÚSCULAS o números.")],
     )
     nombre = models.CharField(max_length=100)
     activa = models.BooleanField(default=True)
@@ -122,7 +125,11 @@ class Seccion(ModeloAuditado):
     plantilla_fases = models.JSONField(
         default=list,
         blank=True,
-        help_text='Fases por manos, p. ej. [{"nombre": "Imprimación", "pct": 30}, …]',
+        help_text=(
+            "Fases de avance para certificar una partida por partes, opcionales; "
+            'p. ej. [{"nombre": "Replanteo", "pct": 10}, …]. Los % deben sumar 100. '
+            "Vacía si la sección no usa fases."
+        ),
     )
 
     history = HistoricalRecords()
@@ -134,6 +141,18 @@ class Seccion(ModeloAuditado):
 
     def __str__(self):
         return f"{self.codigo} — {self.nombre}"
+
+    def save(self, *args, **kwargs):
+        # El código es inmutable una vez creada la sección: los documentos se pasan de una
+        # sección a otra, no se renombra la sección.
+        if not self._state.adding:
+            guardadas = type(self).objects.filter(pk=self.pk)
+            original = guardadas.values_list("codigo", flat=True).first()
+            if original is not None and original != self.codigo:
+                raise ValidationError(
+                    {"codigo": "El código de una sección no se puede cambiar una vez creada."}
+                )
+        super().save(*args, **kwargs)
 
     def clean(self):
         if not self.plantilla_fases:

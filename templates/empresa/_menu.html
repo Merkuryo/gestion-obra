@@ -1,0 +1,6 @@
+{% comment %}Menú del módulo Ajustes (en la barra superior). Uso: include con activo="empresa"|"secciones".{% endcomment %}
+<span class="navbar-text fw-semibold border-start ms-2 ps-3 me-2">Ajustes</span>
+<ul class="navbar-nav">
+  <li class="nav-item"><a class="nav-link{% if activo == 'empresa' %} active{% endif %}" href="{% url 'empresa:ficha' %}">Empresa</a></li>
+  <li class="nav-item"><a class="nav-link{% if activo == 'secciones' %} active{% endif %}" href="{% url 'empresa:secciones' %}">Secciones</a></li>
+</ul>

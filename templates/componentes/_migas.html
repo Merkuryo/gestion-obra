@@ -1,0 +1,14 @@
+{% comment %}Migas de pan. `migas` = lista de (texto, url); el último va sin enlace.{% endcomment %}
+{% if migas %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-3">
+    {% for texto, url in migas %}
+      {% if forloop.last or not url %}
+        <li class="breadcrumb-item active" aria-current="page">{{ texto }}</li>
+      {% else %}
+        <li class="breadcrumb-item"><a href="{{ url }}">{{ texto }}</a></li>
+      {% endif %}
+    {% endfor %}
+  </ol>
+</nav>
+{% endif %}

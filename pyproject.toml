@@ -1,7 +1,9 @@
 [project]
 name = "gestion-obra"
 version = "0.1.0"
-description = "Gestión de obra para contratas y subcontratas (Django)"
+description = "Gestión de obra para contratas y subcontratas de cualquier oficio de la construcción (Django)"
+license = "LicenseRef-Proprietary"
+authors = [{ name = "Merkuryo" }]
 requires-python = ">=3.12"
 
 [tool.ruff]

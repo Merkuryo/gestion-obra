@@ -8,6 +8,11 @@ mostrar la ficha en solo lectura. Uso:
 """
 
 from django import forms
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+
+from .models import PermisoRol, Rol
+from .permisos import ACCIONES, PARTES
 
 
 class FormularioBootstrap:
@@ -81,3 +86,92 @@ class CampoMayusculas(forms.CharField):
     def to_python(self, value):
         valor = super().to_python(value)
         return valor.upper() if valor else valor
+
+
+class RolForm(FormularioBootstrap, forms.ModelForm):
+    """Datos del rol, permisos propios y usuarios. Los permisos por parte van en PermisosRolForm."""
+
+    usuarios = forms.ModelMultipleChoiceField(
+        queryset=None,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Usuarios que tienen este rol.",
+    )
+
+    grupos = [
+        ("General", ["nombre", "descripcion", "activo"]),
+        ("Permisos propios", ["ver_nominas", "ver_margenes"]),
+        ("Usuarios", ["usuarios"]),
+    ]
+
+    class Meta:
+        model = Rol
+        fields = ["nombre", "descripcion", "activo", "ver_nominas", "ver_margenes"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        usuarios = get_user_model().objects.filter(is_active=True).order_by("username")
+        self.fields["usuarios"].queryset = usuarios
+        # La clase de Bootstrap iría también al contenedor de las casillas y lo deformaría
+        self.fields["usuarios"].widget.attrs.pop("class", None)
+        self.fields["usuarios"].label_from_instance = lambda u: (
+            f"{u.get_full_name()} ({u.username})" if u.get_full_name() else u.username
+        )
+        if self.instance.pk:
+            self.initial.setdefault("usuarios", list(self.instance.grupo.user_set.all()))
+        if self.instance.es_plantilla:
+            self.fields["nombre"].disabled = True
+            self.fields["nombre"].help_text = "Rol de serie: se edita y se duplica, no se renombra."
+
+    def clean_nombre(self):
+        nombre = self.cleaned_data["nombre"].strip()
+        otros = Group.objects.filter(name__iexact=nombre)
+        if self.instance.pk:
+            otros = otros.exclude(pk=self.instance.grupo_id)
+        if otros.exists():
+            raise forms.ValidationError("Ya hay un rol o grupo con ese nombre.")
+        return nombre
+
+
+class PermisosRolForm(forms.Form):
+    """Tabla de partes × acciones, con el ámbito de cada parte."""
+
+    def __init__(self, *args, permisos=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        permisos = permisos or {}
+        for parte in PARTES:
+            actual = permisos.get(parte, {})
+            for accion in ACCIONES:
+                self.fields[f"{parte}__{accion}"] = forms.BooleanField(
+                    label=ACCIONES[accion],
+                    required=False,
+                    initial=actual.get(accion, False),
+                    widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+                )
+            self.fields[f"{parte}__ambito"] = forms.ChoiceField(
+                label="Ámbito",
+                choices=PermisoRol.AMBITOS,
+                initial=actual.get("ambito", PermisoRol.TODAS),
+                widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+            )
+
+    def filas(self):
+        """Para la plantilla: una fila por parte con sus casillas y el ámbito."""
+        return [
+            {
+                "nombre": nombre,
+                "acciones": [self[f"{parte}__{a}"] for a in ACCIONES],
+                "ambito": self[f"{parte}__ambito"],
+            }
+            for parte, nombre in PARTES.items()
+        ]
+
+    def como_dict(self):
+        datos = self.cleaned_data
+        return {
+            parte: {
+                **{a: datos[f"{parte}__{a}"] for a in ACCIONES},
+                "ambito": datos[f"{parte}__ambito"],
+            }
+            for parte in PARTES
+        }

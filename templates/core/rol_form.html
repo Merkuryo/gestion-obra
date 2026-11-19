@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block titulo %}{{ rol|default:"Nuevo rol" }} · Ajustes{% endblock %}
+{% block menu_modulo %}{% include "empresa/_menu.html" with activo="roles" %}{% endblock %}
+{% block contenido %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <h1 class="h4 mb-0">{{ rol|default:"Nuevo rol" }}</h1>
+  {% if rol %}
+    {% if rol.es_plantilla %}<span class="badge text-bg-primary">De serie</span>{% endif %}
+    {% if not rol.activo %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}
+  {% endif %}
+</div>
+{% include "componentes/_formulario.html" with form=form url_descartar=url_lista acciones=acciones extra="core/_permisos_rol.html" %}
+{% endblock %}

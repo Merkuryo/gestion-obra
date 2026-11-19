@@ -6,6 +6,8 @@
   - acciones: lista de dicts {texto, icono, clase, url, post} para botones extra (opcional).
     Con post=True el botón envía a `url` por POST (con el token CSRF del formulario).
   - En solo lectura (form.solo_lectura) no hay botón Guardar ni Descartar.
+  - extra: plantilla parcial opcional que se incluye al final, dentro del mismo <form>
+    (p. ej. una tabla de permisos que se guarda junto con el formulario).
 {% endcomment %}
 <form method="post" novalidate{% if form.is_multipart %} enctype="multipart/form-data"{% endif %}>
   {% csrf_token %}
@@ -58,4 +60,5 @@
       {% endfor %}
     {% endif %}
   {% endwith %}
+  {% if extra %}{% include extra %}{% endif %}
 </form>

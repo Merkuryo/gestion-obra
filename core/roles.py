@@ -1,14 +1,16 @@
-"""Roles de usuario (grupos de Django).
+"""Nombres de los roles de serie (grupos de Django).
 
-Los permisos de cada rol por módulo están en core/permisos.py.
+Son las plantillas que crean las migraciones; cada empresa puede editarlas y crear otros
+roles en Ajustes → Roles. Los permisos se consultan siempre en core/permisos.py.
 """
 
 GERENCIA = "Gerencia"
 ADMINISTRACION = "Administración"
 OFICINA_TECNICA = "Oficina técnica"
 JEFE_OBRA = "Jefe de obra"
+ENCARGADO = "Encargado"
 
-ROLES = [GERENCIA, ADMINISTRACION, OFICINA_TECNICA, JEFE_OBRA]
+ROLES = [GERENCIA, ADMINISTRACION, OFICINA_TECNICA, JEFE_OBRA, ENCARGADO]
 
 
 def tiene_rol(usuario, *roles: str) -> bool:

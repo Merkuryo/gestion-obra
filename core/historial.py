@@ -13,7 +13,8 @@ ficha tenga historial, su modelo necesita `history = HistoricalRecords()` y `par
 - `historial_relacionado(self)`: lista de `Relacionado` con el historial de otros modelos que
   se muestran en la misma ficha (p. ej. los permisos de un rol).
 
-A quien no puede ver un campo se le muestra «(oculto)» en lugar de sus valores.
+A quien no puede ver un campo se le muestra «(oculto)» en lugar de sus valores (la misma
+regla que en listas y formularios: permisos.campos_ocultos).
 """
 
 import heapq
@@ -33,7 +34,7 @@ from . import permisos
 
 POR_PAGINA = 20
 _BLOQUE = 50  # registros históricos que se leen de cada vez
-OCULTO = "(oculto)"
+OCULTO = permisos.OCULTO
 VACIO = "—"
 # Campos de auditoría: ya se ven en las columnas de fecha y usuario
 EXCLUIDOS = {"id", "creado_en", "modificado_en", "creado_por", "modificado_por"}

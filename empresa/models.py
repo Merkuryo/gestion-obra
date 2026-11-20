@@ -135,7 +135,8 @@ class Seccion(ModeloAuditado):
 
     history = HistoricalRecords()
     parte_permisos = "ajustes"
-    campos_margen = ("pct_beneficio_defecto",)  # en el historial, solo con «ver márgenes»
+    # Solo con «ver márgenes»: oculto en listas, formularios e historial
+    campos_margen = ("pct_beneficio_defecto",)
     baja_si = {"activa": False}  # archivar cuenta como baja en el historial
 
     class Meta:

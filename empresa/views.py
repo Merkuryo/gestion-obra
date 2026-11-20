@@ -31,10 +31,14 @@ class FichaEmpresa(ConPermiso, View):
         editable = puede_editar(request.user, self.modulo)
         if empresa is None and not editable:
             return self._pintar(request, None)  # nada que mostrar: aviso, sin formulario
-        return self._pintar(request, EmpresaForm(instance=empresa, solo_lectura=not editable))
+        return self._pintar(
+            request, EmpresaForm(instance=empresa, solo_lectura=not editable, usuario=request.user)
+        )
 
     def post(self, request):
-        form = EmpresaForm(request.POST, request.FILES, instance=Empresa.actual())
+        form = EmpresaForm(
+            request.POST, request.FILES, instance=Empresa.actual(), usuario=request.user
+        )
         if form.is_valid():
             quitar_logo = form.cleaned_data.get("quitar_logo", False)
             servicios.guardar_empresa(form.save(commit=False), request.user, quitar_logo)
@@ -103,12 +107,12 @@ class FichaSeccion(ConPermiso, View):
         editable = puede_editar(request.user, self.modulo)
         if seccion is None and not editable:
             raise PermissionDenied
-        form = SeccionForm(instance=seccion, solo_lectura=not editable)
+        form = SeccionForm(instance=seccion, solo_lectura=not editable, usuario=request.user)
         return self._pintar(request, form, seccion)
 
     def post(self, request, pk=None):
         seccion = get_object_or_404(Seccion, pk=pk) if pk else None
-        form = SeccionForm(request.POST, instance=seccion)
+        form = SeccionForm(request.POST, instance=seccion, usuario=request.user)
         if form.is_valid():
             guardada = servicios.guardar_seccion(form.save(commit=False), request.user)
             messages.success(request, f"Sección {guardada.codigo} guardada.")

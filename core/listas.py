@@ -1,9 +1,11 @@
 """Vista de lista: búsqueda, orden y totales calculados en Python (no en plantillas)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 
 from django.db.models import Q, Sum
+
+from .permisos import OCULTO, campos_ocultos
 
 
 @dataclass
@@ -53,10 +55,17 @@ def preparar_lista(request, queryset, columnas, buscar_en=(), url_fila=None):
     - Orden: solo por columnas declaradas `ordenable`; cualquier otro valor se ignora.
     - Totales: `aggregate(Sum)` sobre el queryset filtrado completo, en Decimal.
     """
+    # Lo que el usuario no puede ver (importes, márgenes, nóminas) no se muestra, ni se busca,
+    # ni se ordena, ni se suma: core.permisos.campos_ocultos
+    usuario = getattr(request, "user", None)
+    ocultas = set(campos_ocultos(usuario, queryset.model()))
+    buscar_en = tuple(c for c in buscar_en if c.split("__")[0] not in ocultas)
+    columnas_orden = [c for c in columnas if c.campo not in ocultas]
+
     q = request.GET.get("q", "").strip()
     if q and buscar_en:
         queryset = _filtrar(queryset, q, buscar_en)
-    queryset, orden = _ordenar(queryset, request.GET.get("orden", ""), columnas)
+    queryset, orden = _ordenar(queryset, request.GET.get("orden", ""), columnas_orden)
 
     cabeceras = []
     for c in columnas:
@@ -69,7 +78,11 @@ def preparar_lista(request, queryset, columnas, buscar_en=(), url_fila=None):
             {
                 "titulo": c.titulo,
                 "numerica": c.numerica,
-                "url_orden": _url_orden(request, c.campo, orden) if c.ordenable else None,
+                "url_orden": (
+                    _url_orden(request, c.campo, orden)
+                    if c.ordenable and c.campo not in ocultas
+                    else None
+                ),
                 "flecha": flecha,
             }
         )
@@ -77,8 +90,13 @@ def preparar_lista(request, queryset, columnas, buscar_en=(), url_fila=None):
     objetos = list(queryset)
     filas = []
     for objeto in objetos:
+        # Por fila, porque el ámbito (obras asignadas) puede ocultar en unas filas y en otras no
+        ocultos = campos_ocultos(usuario, objeto)
+        ocultas.update(ocultos)
         celdas = [
-            {
+            {"valor": OCULTO, "numerica": False, "tipo": "oculto"}
+            if c.campo in ocultos
+            else {
                 "valor": _valor(c, objeto),
                 "numerica": c.numerica,
                 "tipo": c.tipo,
@@ -90,6 +108,7 @@ def preparar_lista(request, queryset, columnas, buscar_en=(), url_fila=None):
         filas.append({"objeto": objeto, "celdas": celdas, "url": url})
 
     totales = None
+    columnas = [replace(c, total=False) if c.campo in ocultas else c for c in columnas]
     if any(c.total for c in columnas):
         sumas = queryset.aggregate(
             **{f"t{i}": Sum(c.campo) for i, c in enumerate(columnas) if c.total}

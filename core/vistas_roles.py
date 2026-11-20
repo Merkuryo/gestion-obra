@@ -78,11 +78,16 @@ class FichaRol(ConGestionRoles, View):
     def get(self, request, pk=None):
         rol = get_object_or_404(Rol, pk=pk) if pk else None
         permisos = servicios.permisos_de(rol) if rol else {}
-        return self._pintar(request, RolForm(instance=rol), PermisosRolForm(permisos=permisos), rol)
+        return self._pintar(
+            request,
+            RolForm(instance=rol, usuario=request.user),
+            PermisosRolForm(permisos=permisos),
+            rol,
+        )
 
     def post(self, request, pk=None):
         rol = get_object_or_404(Rol, pk=pk) if pk else None
-        form = RolForm(request.POST, instance=rol)
+        form = RolForm(request.POST, instance=rol, usuario=request.user)
         permisos_form = PermisosRolForm(request.POST)
         if form.is_valid() and permisos_form.is_valid():
             try:

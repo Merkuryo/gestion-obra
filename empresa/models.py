@@ -76,6 +76,7 @@ class Empresa(ModeloAuditado):
     )
 
     history = HistoricalRecords()
+    parte_permisos = "ajustes"  # quién ve su historial (core/historial.py)
 
     class Meta:
         verbose_name = "empresa"
@@ -133,6 +134,8 @@ class Seccion(ModeloAuditado):
     )
 
     history = HistoricalRecords()
+    parte_permisos = "ajustes"
+    baja_si = {"activa": False}  # archivar cuenta como baja en el historial
 
     class Meta:
         verbose_name = "sección"

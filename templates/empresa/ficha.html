@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load componentes %}
 {% block titulo %}Empresa · Ajustes{% endblock %}
 {% block menu_modulo %}{% include "empresa/_menu.html" with activo="empresa" %}{% endblock %}
 {% block contenido %}
@@ -25,5 +26,6 @@
     </div></div>
   {% endif %}
   {% include "componentes/_formulario.html" with form=form url_descartar=request.path %}
+  {% historial ficha %}
 {% endif %}
 {% endblock %}

@@ -1,0 +1,17 @@
+{% comment %}
+  Historial al pie de una ficha. Uso: {% load componentes %}{% historial objeto %}
+  Lo prepara core/historial.py; «Ver más» trae las 20 entradas siguientes con HTMX.
+{% endcomment %}
+{% if pagina %}
+<section class="card mt-4" aria-labelledby="historial-titulo">
+  <h2 class="card-header h6 mb-0" id="historial-titulo"><i class="bi bi-clock-history"></i> Historial</h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr><th scope="col">Fecha y hora</th><th scope="col">Usuario</th><th scope="col">Acción</th><th scope="col">Cambios</th></tr>
+      </thead>
+      <tbody>{% include "componentes/_historial_filas.html" %}</tbody>
+    </table>
+  </div>
+</section>
+{% endif %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load componentes %}
 {% block titulo %}{{ seccion|default:"Nueva sección" }} · Ajustes{% endblock %}
 {% block menu_modulo %}{% include "empresa/_menu.html" with activo="secciones" %}{% endblock %}
 {% block contenido %}
@@ -10,4 +11,5 @@
   {% endif %}
 </div>
 {% include "componentes/_formulario.html" with form=form url_descartar=url_lista acciones=acciones %}
+{% historial seccion %}
 {% endblock %}

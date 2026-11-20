@@ -115,6 +115,40 @@ def puede_ver_margenes(usuario, parte: str, obra=None) -> bool:
     return False
 
 
+def obra_de(objeto):
+    """Obra a la que pertenece `objeto` para aplicar el ámbito: la propia obra (si sabe decir
+    a quién está asignada) o su atributo `obra`. None si no va ligado a ninguna."""
+    if hasattr(objeto, "esta_asignada"):
+        return objeto
+    return getattr(objeto, "obra", None)
+
+
+def puede_ver_historial(usuario, objeto) -> bool:
+    """El historial de una ficha lo ve quien puede ver su parte (`parte_permisos` del modelo).
+    El de los roles, como sus fichas, solo quien gestiona roles."""
+    parte = getattr(objeto, "parte_permisos", None)
+    if objeto is None or parte is None:
+        return False
+    if parte == PARTE_ROLES:
+        return gestiona_roles(usuario)
+    return puede(usuario, parte, "ver", obra=obra_de(objeto))
+
+
+def campos_ocultos(usuario, objeto, modelo=None) -> set:
+    """Campos de `modelo` (por defecto, el de `objeto`) que el usuario no puede ver en la ficha
+    de `objeto`: los de importes sin «ver importes» en su parte y los de nóminas sin ese
+    permiso."""
+    modelo = modelo or type(objeto)
+    ocultos = set()
+    importes = getattr(modelo, "campos_importe", ())
+    if importes and not puede(usuario, objeto.parte_permisos, "ver_importes", obra=obra_de(objeto)):
+        ocultos.update(importes)
+    nominas = getattr(modelo, "campos_nominas", ())
+    if nominas and not puede_ver_nominas(usuario):
+        ocultos.update(nominas)
+    return ocultos
+
+
 class ConPermiso(AccessMixin):
     """Mixin de vistas. `modulo` es obligatorio; `metodos_escritura` exigen nivel E.
 

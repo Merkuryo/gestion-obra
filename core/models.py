@@ -68,6 +68,8 @@ class Rol(ModeloAuditado):
     )
 
     history = HistoricalRecords()
+    parte_permisos = "roles"  # quién ve su historial (core/historial.py)
+    baja_si = {"activo": False}
 
     class Meta:
         verbose_name = "rol"
@@ -76,6 +78,20 @@ class Rol(ModeloAuditado):
 
     def __str__(self):
         return self.nombre
+
+    def historial_relacionado(self):
+        """Los cambios de permisos salen en el historial del rol, con la parte como título.
+        Los usuarios que entran y salen quedan en el motivo de cada cambio del rol."""
+        from .historial import Relacionado
+        from .permisos import PARTES
+
+        return [
+            Relacionado(
+                PermisoRol.history.filter(rol_id=self.pk),
+                titulo=lambda r: f"Permisos · {PARTES.get(r.parte, r.parte)}",
+                excluir=("rol", "parte"),
+            )
+        ]
 
 
 class PermisoRol(ModeloAuditado):

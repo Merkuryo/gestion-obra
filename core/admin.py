@@ -11,6 +11,9 @@ class UsuarioAdmin(UserAdmin):
         ("Datos para documentos", {"fields": ("telefono", "cargo")}),
     )
     list_display = ("username", "first_name", "last_name", "email", "cargo", "is_active")
+    # Los roles (grupos) de cada usuario solo se cambian en Ajustes → Roles, con sus
+    # salvaguardas y su historial
+    readonly_fields = ("groups",)
 
 
 class PermisoRolInline(admin.TabularInline):

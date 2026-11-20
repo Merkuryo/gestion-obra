@@ -48,7 +48,12 @@ def test_alta_cambio_y_baja_con_antes_y_despues(gerente, seccion):
     baja, cambio, alta = historial(seccion, gerente).entradas
     assert [alta.accion, cambio.accion, baja.accion] == ["alta", "cambio", "baja"]
     assert baja.texto_accion == "Baja / anulación"
-    assert cambios(alta) == {"Código": ("—", "INS"), "Nombre": ("—", "Instalaciones")}
+    assert cambios(alta) == {  # en el alta, todos los campos con valor
+        "Código": ("—", "INS"),
+        "Nombre": ("—", "Instalaciones"),
+        "% beneficio objetivo por defecto": ("—", "15,00"),
+        "Activa": ("—", "Sí"),
+    }
     assert cambios(cambio) == {"Nombre": ("Instalaciones", "Instalaciones eléctricas")}
     assert cambios(baja) == {"Activa": ("Sí", "No")}
 
@@ -72,28 +77,76 @@ def test_guardar_sin_cambios_no_ensucia_el_historial(gerente, seccion):
     assert len(historial(seccion, gerente).entradas) == 1
 
 
+PERMISOS_AJUSTES = "Permisos · Empresa, secciones y ajustes"
+
+
 @pytest.mark.django_db
-def test_fk_y_choices_como_texto_y_usuarios_del_rol(gerente, django_user_model):
+def test_alta_del_rol_en_una_sola_entrada(gerente, django_user_model):
     compras = django_user_model.objects.create_user("compras1", password="x")
     rol = servicios.guardar_rol(
         Rol(nombre="Compras"), {"ajustes": {"ver": True, "ambito": "asignadas"}}, {compras}, gerente
     )
+    (alta,) = historial(rol, gerente).entradas
+    assert alta.accion == "alta"
+    assert cambios(alta.bloque()) == {
+        "Nombre": ("—", "Compras"),
+        "Plantilla de serie": ("—", "No"),
+        "Activo": ("—", "Sí"),
+        "Ver nóminas individuales": ("—", "No"),
+        "Ver márgenes": ("—", "No"),
+    }
+    assert "Grupo" not in cambios(alta)  # campo interno: no se muestra
+    assert cambios(alta.bloque(PERMISOS_AJUSTES)) == {
+        "Ver": ("—", "Sí"),
+        "Crear": ("—", "No"),
+        "Editar": ("—", "No"),
+        "Aprobar": ("—", "No"),
+        "Ver importes": ("—", "No"),
+        "Ámbito": ("—", "Solo las asignadas"),  # choices por su texto
+    }
+    assert alta.motivo == "Usuarios: entran compras1"
+
+
+@pytest.mark.django_db
+def test_cada_guardado_del_rol_es_una_entrada(gerente, django_user_model):
+    compras = django_user_model.objects.create_user("compras1", password="x")
+    rol = servicios.guardar_rol(
+        Rol(nombre="Compras"), {"ajustes": {"ver": True, "ambito": "asignadas"}}, {compras}, gerente
+    )
+    rol.descripcion = "Pedidos"
     servicios.guardar_rol(rol, {"ajustes": {"editar": True}}, set(), gerente)
     servicios.guardar_rol(rol, {}, None, gerente)
 
-    entradas = historial(rol, gerente).entradas
-    quita, cambio_permiso, salen, alta_permiso, alta_rol = entradas
-    assert cambios(alta_rol)["Grupo"] == ("—", "Compras")  # FK por su nombre
-    assert alta_rol.motivo == "Usuarios: entran compras1"
-    assert alta_permiso.titulo == "Permisos · Empresa, secciones y ajustes"
-    assert cambios(alta_permiso) == {"Ver": ("—", "Sí"), "Ámbito": ("—", "Solo las asignadas")}
-    assert salen.motivo == "Usuarios: salen compras1" and not salen.cambios
-    assert cambios(cambio_permiso) == {
+    quita, edicion, alta = historial(rol, gerente).entradas
+    assert edicion.accion == "cambio"
+    assert cambios(edicion.bloque()) == {"Descripción": ("—", "Pedidos")}
+    assert cambios(edicion.bloque(PERMISOS_AJUSTES)) == {
         "Editar": ("No", "Sí"),
-        "Ámbito": ("Solo las asignadas", "Todas las obras"),  # choices por su texto
+        "Ámbito": ("Solo las asignadas", "Todas las obras"),
     }
-    assert quita.accion == "baja" and quita.titulo.startswith("Permisos")
+    assert edicion.motivo == "Usuarios: salen compras1"
+    assert quita.accion == "cambio" and quita.bloque(PERMISOS_AJUSTES).nota == "Eliminado"
     assert not quita.motivo  # el motivo de un guardado no se repite en el siguiente
+
+
+@pytest.mark.django_db
+def test_guardados_seguidos_de_la_misma_ficha_no_se_juntan(gerente, seccion, usuario_con_rol):
+    cambiar(seccion, gerente, nombre="Uno")
+    cambiar(seccion, gerente, nombre="Dos")
+    cambiar(seccion, usuario_con_rol("Administración"), nombre="Tres")
+    assert [cambios(e)["Nombre"][1] for e in historial(seccion, gerente).entradas[:3]] == [
+        "Tres",
+        "Dos",
+        "Uno",
+    ]
+
+
+@pytest.mark.django_db
+def test_alta_con_campo_oculto(gerente, seccion, django_user_model):
+    consulta = rol_solo_ver_ajustes(gerente, django_user_model)
+    alta = historial(seccion, consulta).entradas[0]
+    assert cambios(alta)["% beneficio objetivo por defecto"] == (OCULTO, OCULTO)
+    assert cambios(alta)["Nombre"] == ("—", "Instalaciones")
 
 
 @pytest.mark.django_db
@@ -225,6 +278,8 @@ def test_ficha_de_rol_con_permisos_y_usuarios(cliente_con_rol, empresa, django_u
     html = cliente.get(f"/ajustes/roles/{rol.pk}/").content.decode()
     assert "Permisos · Empresa, secciones y ajustes" in html
     assert "Usuarios: entran compras1" in html
+    assert html.count(">Alta</span>") == 1  # datos, permisos y usuarios en una sola entrada
+    assert "Grupo ·" not in html
 
 
 # ── «Ver más» ──────────────────────────────────────────────────────────────────

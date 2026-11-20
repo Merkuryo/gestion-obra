@@ -5,12 +5,16 @@
   <td>{{ e.usuario }}</td>
   <td><span class="badge text-bg-{{ e.color }}">{{ e.texto_accion }}</span></td>
   <td>
-    {% if e.titulo %}<div class="fw-semibold">{{ e.titulo }}</div>{% endif %}
-    {% if e.cambios %}
-      <ul class="list-unstyled mb-0">
-        {% for c in e.cambios %}<li>{{ c.campo }} · <span class="text-body-secondary">{{ c.antes }}</span> → {{ c.despues }}</li>{% endfor %}
-      </ul>
-    {% endif %}
+    {% for b in e.bloques %}
+      <div{% if not forloop.first %} class="mt-1"{% endif %}>
+        {% if b.titulo %}<div class="fw-semibold">{{ b.titulo }}{% if b.nota %} <span class="fw-normal text-body-secondary">· {{ b.nota }}</span>{% endif %}</div>{% endif %}
+        {% if b.cambios %}
+          <ul class="list-unstyled mb-0">
+            {% for c in b.cambios %}<li>{{ c.campo }} · <span class="text-body-secondary">{{ c.antes }}</span> → {{ c.despues }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    {% endfor %}
     {% if e.motivo %}<div class="small text-body-secondary">{{ e.motivo }}</div>{% endif %}
   </td>
 </tr>

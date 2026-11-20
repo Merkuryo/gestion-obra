@@ -69,6 +69,7 @@ class Rol(ModeloAuditado):
 
     history = HistoricalRecords()
     parte_permisos = "roles"  # quién ve su historial (core/historial.py)
+    campos_internos = ("grupo",)  # el grupo de Django repite el nombre: no sale en el historial
     baja_si = {"activo": False}
 
     class Meta:

@@ -136,13 +136,19 @@ def puede_ver_historial(usuario, objeto) -> bool:
 
 def campos_ocultos(usuario, objeto, modelo=None) -> set:
     """Campos de `modelo` (por defecto, el de `objeto`) que el usuario no puede ver en la ficha
-    de `objeto`: los de importes sin «ver importes» en su parte y los de nóminas sin ese
-    permiso."""
+    de `objeto`:
+    - `campos_importe` (importes y costes, p. ej. el coste hora) sin «ver importes» en su parte;
+    - `campos_margen` (márgenes y beneficio) sin «ver márgenes» en su parte;
+    - `campos_nominas` sin el permiso de nóminas."""
     modelo = modelo or type(objeto)
+    parte, obra = objeto.parte_permisos, obra_de(objeto)
     ocultos = set()
     importes = getattr(modelo, "campos_importe", ())
-    if importes and not puede(usuario, objeto.parte_permisos, "ver_importes", obra=obra_de(objeto)):
+    if importes and not puede(usuario, parte, "ver_importes", obra=obra):
         ocultos.update(importes)
+    margenes = getattr(modelo, "campos_margen", ())
+    if margenes and not puede_ver_margenes(usuario, parte, obra=obra):
+        ocultos.update(margenes)
     nominas = getattr(modelo, "campos_nominas", ())
     if nominas and not puede_ver_nominas(usuario):
         ocultos.update(nominas)

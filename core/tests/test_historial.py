@@ -4,6 +4,7 @@ from django.contrib.auth.models import Group
 from core import servicios
 from core.historial import OCULTO, historial
 from core.models import Rol
+from core.permisos import olvidar_permisos
 from empresa import servicios as servicios_empresa
 from empresa.models import Seccion
 
@@ -114,15 +115,51 @@ def test_usuario_por_nombre_completo(client, django_user_model, empresa, seccion
 
 @pytest.mark.django_db
 def test_importes_ocultos_sin_ver_importes(gerente, seccion, django_user_model, monkeypatch):
-    monkeypatch.setattr(Seccion, "campos_importe", ("pct_beneficio_defecto",), raising=False)
-    cambiar(seccion, gerente, pct_beneficio_defecto="20.00", nombre="Otra")
+    # Hoy ninguna ficha tiene costes: se marca un campo cualquiera como si fuera el coste hora
+    monkeypatch.setattr(Seccion, "campos_importe", ("nombre",), raising=False)
+    cambiar(seccion, gerente, nombre="Otra", activa=False)
     consulta = rol_solo_ver_ajustes(gerente, django_user_model)
 
-    visto = cambios(historial(seccion, gerente).entradas[0])
     oculto = cambios(historial(seccion, consulta).entradas[0])
-    assert visto["% beneficio objetivo por defecto"] == ("15,00", "20,00")
-    assert oculto["% beneficio objetivo por defecto"] == (OCULTO, OCULTO)
+    assert oculto["Nombre"] == (OCULTO, OCULTO)
+    assert oculto["Activa"] == ("Sí", "No")  # el resto se ve
+    assert cambios(historial(seccion, gerente).entradas[0])["Nombre"] == ("Instalaciones", "Otra")
+
+    rol = Rol.objects.get(nombre="Consulta")
+    servicios.guardar_rol(rol, {"ajustes": {"ver_importes": True}}, None, gerente)
+    olvidar_permisos(consulta)
+    assert cambios(historial(seccion, consulta).entradas[0])["Nombre"] == ("Instalaciones", "Otra")
+
+
+@pytest.mark.django_db
+def test_beneficio_de_la_seccion_oculto_sin_ver_margenes(
+    gerente, seccion, usuario_con_rol, django_user_model
+):
+    cambiar(seccion, gerente, pct_beneficio_defecto="20.00", nombre="Otra")
+    campo = "% beneficio objetivo por defecto"
+    consulta = rol_solo_ver_ajustes(gerente, django_user_model)  # ve ajustes, sin márgenes
+
+    oculto = cambios(historial(seccion, consulta).entradas[0])
+    assert oculto[campo] == (OCULTO, OCULTO)
     assert oculto["Nombre"] == ("Instalaciones", "Otra")
+    for quien in (gerente, usuario_con_rol("Oficina técnica")):
+        assert cambios(historial(seccion, quien).entradas[0])[campo] == ("15,00", "20,00")
+
+    rol = Rol.objects.get(nombre="Consulta")
+    rol.ver_margenes = True
+    servicios.guardar_rol(rol, {"ajustes": {"ver": True}}, None, gerente)
+    olvidar_permisos(consulta)
+    assert cambios(historial(seccion, consulta).entradas[0])[campo] == ("15,00", "20,00")
+
+
+@pytest.mark.django_db
+def test_ficha_de_seccion_oculta_el_beneficio_en_el_historial(
+    client, gerente, seccion, django_user_model, empresa
+):
+    cambiar(seccion, gerente, pct_beneficio_defecto="20.00")
+    client.force_login(rol_solo_ver_ajustes(gerente, django_user_model))
+    html = client.get(f"/ajustes/secciones/{seccion.pk}/").content.decode()
+    assert "(oculto)</span> → (oculto)" in html
 
 
 @pytest.mark.django_db

@@ -4,7 +4,9 @@ Lo usa el componente `{% historial objeto %}` (core/templatetags/componentes.py)
 ficha tenga historial, su modelo necesita `history = HistoricalRecords()` y `parte_permisos`
 (la parte de core/permisos.PARTES que hay que poder ver). Opcionalmente:
 
-- `campos_importe`: campos que solo ve quien tiene «ver importes» en esa parte;
+- `campos_importe`: importes y costes (coste hora y similares), que solo ve quien tiene
+  «ver importes» en esa parte;
+- `campos_margen`: márgenes y beneficio, que solo ve quien tiene «ver márgenes» en esa parte;
 - `campos_nominas`: campos que solo ve quien tiene el permiso de nóminas;
 - `baja_si`: {campo: valor} que convierte un cambio en baja o anulación
   (p. ej. {"activa": False} al archivar, {"estado": "anulado"} en un documento);

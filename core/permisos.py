@@ -1,35 +1,85 @@
-"""Permisos por rol y módulo. Única capa que decide permisos.
+"""Permisos por rol y parte de la app. Única capa que decide permisos.
 
 Las vistas no comprueban roles por su cuenta: usan `ConPermiso` o estas funciones.
-Cada módulo nuevo añade a MATRIZ sus filas.
-Niveles: "E" crear/editar (incluye ver) · "V" solo ver · ausente = sin acceso.
+Los permisos de cada rol se guardan en la base de datos (core.models.Rol y PermisoRol) y se
+editan en Ajustes → Roles. Lo que es fijo es la lista de PARTES: cada módulo nuevo añade aquí
+su parte y, con una migración de datos, los permisos por defecto de las plantillas.
+
+Niveles de `nivel()`: "E" crear/editar (incluye ver) · "V" solo ver · None = sin acceso.
 """
 
 from django.contrib.auth.mixins import AccessMixin
 from django.core.exceptions import PermissionDenied
 
-from .roles import ADMINISTRACION, GERENCIA, OFICINA_TECNICA
-
 EDITAR = "E"
 VER = "V"
 
-MATRIZ = {
-    # Ajustes: datos de la empresa, secciones y series de numeración
-    "ajustes": {GERENCIA: EDITAR, ADMINISTRACION: VER, OFICINA_TECNICA: VER},
+# Partes de la app sobre las que se dan permisos (clave → nombre en pantalla)
+PARTES = {
+    "ajustes": "Empresa, secciones y ajustes",
+    "roles": "Usuarios y roles",
 }
+
+ACCIONES = {
+    "ver": "Ver",
+    "crear": "Crear",
+    "editar": "Editar",
+    "aprobar": "Aprobar",
+    "ver_importes": "Ver importes",
+}
+
+PARTE_ROLES = "roles"  # quien puede editarla gestiona los roles y los usuarios
+_CACHE = "_permisos_por_rol"
+
+
+def _permisos(usuario):
+    """[(rol, {parte: PermisoRol})] de los roles activos del usuario. Se calcula una vez por
+    objeto usuario, es decir, una vez por petición."""
+    if not hasattr(usuario, _CACHE):
+        from .models import Rol
+
+        roles = Rol.objects.filter(activo=True, grupo__user=usuario).prefetch_related("permisos")
+        setattr(usuario, _CACHE, [(r, {p.parte: p for p in r.permisos.all()}) for r in roles])
+    return getattr(usuario, _CACHE)
+
+
+def olvidar_permisos(usuario):
+    """Descarta la caché del usuario (tras cambiar sus roles en la misma petición)."""
+    if hasattr(usuario, _CACHE):
+        delattr(usuario, _CACHE)
+
+
+def _obra_permitida(permiso, usuario, obra):
+    if permiso.ambito != permiso.ASIGNADAS or obra is None:
+        return True
+    # Las obras implementarán `esta_asignada(usuario)` cuando existan las asignaciones
+    return bool(obra.esta_asignada(usuario))
+
+
+def puede(usuario, parte: str, accion: str, obra=None) -> bool:
+    """¿Puede `usuario` hacer `accion` en `parte`? Suma los permisos de todos sus roles.
+
+    Con ámbito «solo asignadas», si se indica una obra, exige que esté asignada al usuario.
+    Sin obra (p. ej. una lista) basta con tener el permiso; la lista filtrará por obra.
+    """
+    if accion not in ACCIONES:
+        raise ValueError(f"Acción desconocida: {accion}")
+    if not usuario.is_authenticated:
+        return False
+    if usuario.is_superuser:
+        return True
+    for _rol, permisos in _permisos(usuario):
+        permiso = permisos.get(parte)
+        if permiso and getattr(permiso, accion) and _obra_permitida(permiso, usuario, obra):
+            return True
+    return False
 
 
 def nivel(usuario, modulo: str) -> str | None:
     """Nivel más alto que el usuario tiene en el módulo (E, V o None)."""
-    if not usuario.is_authenticated:
-        return None
-    if usuario.is_superuser:
+    if puede(usuario, modulo, "crear") or puede(usuario, modulo, "editar"):
         return EDITAR
-    roles = set(usuario.groups.values_list("name", flat=True))
-    niveles = {n for rol, n in MATRIZ.get(modulo, {}).items() if rol in roles}
-    if EDITAR in niveles:
-        return EDITAR
-    return VER if VER in niveles else None
+    return VER if puede(usuario, modulo, "ver") else None
 
 
 def puede_ver(usuario, modulo: str) -> bool:
@@ -38,6 +88,31 @@ def puede_ver(usuario, modulo: str) -> bool:
 
 def puede_editar(usuario, modulo: str) -> bool:
     return nivel(usuario, modulo) == EDITAR
+
+
+def gestiona_roles(usuario) -> bool:
+    return puede(usuario, PARTE_ROLES, "editar")
+
+
+def puede_ver_nominas(usuario) -> bool:
+    """Nóminas individuales: permiso propio del rol, sin ámbito."""
+    if not usuario.is_authenticated:
+        return False
+    return usuario.is_superuser or any(r.ver_nominas for r, _ in _permisos(usuario))
+
+
+def puede_ver_margenes(usuario, parte: str, obra=None) -> bool:
+    """Márgenes y beneficio de `parte`: hace falta, en un mismo rol, el permiso «ver márgenes»
+    y poder ver esa parte (respetando su ámbito)."""
+    if not usuario.is_authenticated:
+        return False
+    if usuario.is_superuser:
+        return True
+    for rol, permisos in _permisos(usuario):
+        permiso = permisos.get(parte)
+        if rol.ver_margenes and permiso and permiso.ver and _obra_permitida(permiso, usuario, obra):
+            return True
+    return False
 
 
 class ConPermiso(AccessMixin):
@@ -59,5 +134,16 @@ class ConPermiso(AccessMixin):
             else puede_ver(request.user, self.modulo)
         )
         if not permitido:
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+
+class ConGestionRoles(AccessMixin):
+    """Mixin de las pantallas de roles: solo para quien gestiona roles, también para ver."""
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not gestiona_roles(request.user):
             raise PermissionDenied
         return super().dispatch(request, *args, **kwargs)

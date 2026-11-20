@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from simple_history.models import HistoricalRecords
 
 
 class Usuario(AbstractUser):
@@ -40,3 +41,73 @@ class ModeloAuditado(models.Model):
 
     class Meta:
         abstract = True
+
+
+class Rol(ModeloAuditado):
+    """Rol editable de la empresa. Va unido a un grupo de Django: los usuarios del grupo
+    tienen el rol. Qué puede hacer en cada parte de la app está en PermisoRol.
+
+    Los roles de serie (Gerencia, Administración, Oficina técnica, Jefe de obra y Encargado)
+    son plantillas: se pueden editar y duplicar, pero no renombrar.
+    """
+
+    grupo = models.OneToOneField("auth.Group", on_delete=models.PROTECT, related_name="rol")
+    nombre = models.CharField(max_length=150, unique=True)
+    descripcion = models.CharField("descripción", max_length=255, blank=True)
+    es_plantilla = models.BooleanField("plantilla de serie", default=False, editable=False)
+    activo = models.BooleanField(default=True, help_text="Un rol inactivo no da ningún permiso.")
+    ver_nominas = models.BooleanField(
+        "ver nóminas individuales",
+        default=False,
+        help_text="Coste mensual de cada persona. El coste hora se ve sin este permiso.",
+    )
+    ver_margenes = models.BooleanField(
+        "ver márgenes",
+        default=False,
+        help_text="Márgenes y beneficio de presupuestos y obras, dentro del ámbito del rol.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "rol"
+        verbose_name_plural = "roles"
+        ordering = ["nombre"]
+
+    def __str__(self):
+        return self.nombre
+
+
+class PermisoRol(ModeloAuditado):
+    """Lo que un rol puede hacer en una parte de la app (las partes están en core/permisos.py)."""
+
+    TODAS = "todas"
+    ASIGNADAS = "asignadas"
+    AMBITOS = [(TODAS, "Todas las obras"), (ASIGNADAS, "Solo las asignadas")]
+
+    rol = models.ForeignKey(Rol, on_delete=models.CASCADE, related_name="permisos")
+    parte = models.CharField(max_length=50)
+    ver = models.BooleanField(default=False)
+    crear = models.BooleanField(default=False)
+    editar = models.BooleanField(default=False)
+    aprobar = models.BooleanField(default=False)
+    ver_importes = models.BooleanField(default=False)
+    ambito = models.CharField("ámbito", max_length=10, choices=AMBITOS, default=TODAS)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "permiso de rol"
+        verbose_name_plural = "permisos de rol"
+        constraints = [
+            models.UniqueConstraint(fields=["rol", "parte"], name="permiso_unico_por_parte"),
+        ]
+
+    def __str__(self):
+        return f"{self.rol} · {self.parte}"
+
+    def save(self, *args, **kwargs):
+        # Cualquier otra acción exige poder ver la parte
+        if self.crear or self.editar or self.aprobar or self.ver_importes:
+            self.ver = True
+        super().save(*args, **kwargs)

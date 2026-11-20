@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block titulo %}Roles · Ajustes{% endblock %}
+{% block menu_modulo %}{% include "empresa/_menu.html" with activo="roles" %}{% endblock %}
+{% block contenido %}
+<div class="d-flex align-items-center mb-3">
+  <h1 class="h4 mb-0">Roles</h1>
+  <a class="btn btn-primary btn-sm ms-3" href="{% url 'rol_nuevo' %}"><i class="bi bi-plus-lg"></i> Nuevo rol</a>
+</div>
+<p class="text-body-secondary small">Los roles de serie se pueden editar y duplicar. Para crear uno parecido, abre el de serie y pulsa «Duplicar».</p>
+{% include "componentes/_lista.html" with lista=lista %}
+{% endblock %}

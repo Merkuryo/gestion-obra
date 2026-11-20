@@ -1,0 +1,24 @@
+{% comment %}Tabla de permisos del rol: partes × acciones, con el ámbito. Va dentro del formulario del rol.{% endcomment %}
+<h2 class="h6 mt-4">Permisos por parte de la app</h2>
+<p class="text-body-secondary small mb-2">Cualquier acción incluye «Ver». «Solo las asignadas» limita el permiso a las obras asignadas a cada usuario.</p>
+{% if permisos_form.non_field_errors %}<div class="alert alert-danger">{{ permisos_form.non_field_errors|join:" " }}</div>{% endif %}
+<div class="table-responsive">
+  <table class="table table-sm align-middle bg-body">
+    <thead class="table-light">
+      <tr>
+        <th scope="col">Parte</th>
+        {% for campo in permisos_form.filas.0.acciones %}<th scope="col" class="text-center">{{ campo.label }}</th>{% endfor %}
+        <th scope="col">Ámbito</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for fila in permisos_form.filas %}
+        <tr>
+          <th scope="row" class="fw-normal">{{ fila.nombre }}</th>
+          {% for campo in fila.acciones %}<td class="text-center">{{ campo }}</td>{% endfor %}
+          <td style="min-width: 12rem;">{{ fila.ambito }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

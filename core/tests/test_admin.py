@@ -38,3 +38,14 @@ def test_guardar_un_usuario_en_el_admin_no_cambia_sus_roles(client, superusuario
     tecnico.refresh_from_db()
     assert tecnico.first_name == "Nuevo"  # el resto del usuario sí se guarda
     assert list(tecnico.groups.values_list("name", flat=True)) == ["Oficina técnica"]
+
+
+@pytest.mark.django_db
+def test_grupos_en_solo_lectura_en_el_admin(client, superusuario):
+    gerencia = Group.objects.get(name="Gerencia")
+    assert client.get("/admin/auth/group/").status_code == 200
+    assert client.get(f"/admin/auth/group/{gerencia.pk}/change/").status_code == 200  # consulta
+    assert client.get("/admin/auth/group/add/").status_code == 403
+    assert client.get(f"/admin/auth/group/{gerencia.pk}/delete/").status_code == 403
+    client.post(f"/admin/auth/group/{gerencia.pk}/change/", {"name": "Dirección"})
+    assert Group.objects.filter(name="Gerencia").exists()

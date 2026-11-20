@@ -1,5 +1,6 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.admin import GroupAdmin, UserAdmin
+from django.contrib.auth.models import Group
 from simple_history.admin import SimpleHistoryAdmin
 
 from .models import PermisoRol, Rol, Usuario
@@ -34,6 +35,23 @@ class RolAdmin(SimpleHistoryAdmin):
 
     list_display = ("nombre", "es_plantilla", "activo", "ver_nominas", "ver_margenes")
     inlines = [PermisoRolInline]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+admin.site.unregister(Group)
+
+
+@admin.register(Group)
+class GrupoAdmin(GroupAdmin):
+    """Solo consulta: cada grupo es un rol y se crea, renombra o borra en Ajustes → Roles."""
 
     def has_add_permission(self, request):
         return False

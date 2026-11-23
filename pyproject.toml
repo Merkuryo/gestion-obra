@@ -17,4 +17,4 @@ select = ["E", "F", "I", "B", "UP", "DJ"]
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 python_files = ["test_*.py"]
-addopts = "-q --reuse-db"
+addopts = "-q --reuse-db --ds=config.settings.test"

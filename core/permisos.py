@@ -115,6 +115,59 @@ def puede_ver_margenes(usuario, parte: str, obra=None) -> bool:
     return False
 
 
+def obra_de(objeto):
+    """Obra a la que pertenece `objeto` para aplicar el ámbito: la propia obra (si sabe decir
+    a quién está asignada) o su atributo `obra`. None si no va ligado a ninguna."""
+    if hasattr(objeto, "esta_asignada"):
+        return objeto
+    return getattr(objeto, "obra", None)
+
+
+def puede_ver_historial(usuario, objeto) -> bool:
+    """El historial de una ficha lo ve quien puede ver su parte (`parte_permisos` del modelo).
+    El de los roles, como sus fichas, solo quien gestiona roles."""
+    parte = getattr(objeto, "parte_permisos", None)
+    if objeto is None or parte is None:
+        return False
+    if parte == PARTE_ROLES:
+        return gestiona_roles(usuario)
+    return puede(usuario, parte, "ver", obra=obra_de(objeto))
+
+
+OCULTO = "(oculto)"
+
+
+def campos_ocultos(usuario, objeto, modelo=None) -> dict:
+    """Campos de `modelo` (por defecto, el de `objeto`) que el usuario no puede ver ni, por
+    tanto, editar en `objeto`, con el permiso que le falta: {campo: permiso}.
+
+    Regla general: lo que no puedes ver, no lo puedes editar. Se aplica en listas, fichas,
+    formularios e historial (core/listas.py, core/formularios.py, core/historial.py):
+    - `campos_importe` (importes y costes, p. ej. el coste hora) sin «ver importes» en su parte;
+    - `campos_margen` (márgenes y beneficio) sin «ver márgenes» en su parte;
+    - `campos_nominas` sin el permiso de nóminas.
+    Sin usuario (p. ej. un formulario creado sin `usuario`) se ocultan todos.
+    """
+    modelo = modelo or type(objeto)
+    declarados = [
+        (getattr(modelo, "campos_importe", ()), "ver importes"),
+        (getattr(modelo, "campos_margen", ()), "ver márgenes"),
+        (getattr(modelo, "campos_nominas", ()), "nóminas"),
+    ]
+    if not any(campos for campos, _ in declarados):
+        return {}
+    parte, obra = getattr(objeto, "parte_permisos", None), obra_de(objeto)
+    if usuario is None:
+        ve = {"ver importes": False, "ver márgenes": False, "nóminas": False}
+    else:
+        ve = {
+            "ver importes": puede(usuario, parte, "ver_importes", obra=obra),
+            "ver márgenes": puede_ver_margenes(usuario, parte, obra=obra),
+            "nóminas": puede_ver_nominas(usuario),
+        }
+    return {campo: permiso for campos, permiso in declarados if not ve[permiso] for campo in campos}
+
+
 class ConPermiso(AccessMixin):
     """Mixin de vistas. `modulo` es obligatorio; `metodos_escritura` exigen nivel E.
 

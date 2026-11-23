@@ -2,6 +2,9 @@
 
 from django import template
 
+from core.historial import historial as _historial
+from core.permisos import puede_ver_historial
+
 register = template.Library()
 
 
@@ -20,3 +23,13 @@ def etapas_estado(etapas, actual):
             estado = "pendiente"
         resultado.append({"clave": clave, "texto": texto, "estado": estado})
     return resultado
+
+
+@register.inclusion_tag("componentes/_historial.html", takes_context=True)
+def historial(context, objeto):
+    """Historial al pie de una ficha: `{% historial objeto %}`. No pinta nada si el objeto
+    aún no existe o el usuario no puede ver su parte."""
+    usuario = context["request"].user
+    if objeto is None or objeto.pk is None or not puede_ver_historial(usuario, objeto):
+        return {"pagina": None}
+    return {"pagina": _historial(objeto, usuario)}

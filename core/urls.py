@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, vistas_roles
+from . import views, vistas_historial, vistas_roles
 
 urlpatterns = [
     path("", views.inicio, name="inicio"),
@@ -11,5 +11,10 @@ urlpatterns = [
         "ajustes/roles/<int:pk>/duplicar/",
         vistas_roles.DuplicarRol.as_view(),
         name="rol_duplicar",
+    ),
+    path(
+        "historial/<str:app>/<str:modelo>/<int:pk>/",
+        vistas_historial.MasHistorial.as_view(),
+        name="historial_mas",
     ),
 ]

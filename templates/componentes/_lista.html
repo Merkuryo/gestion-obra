@@ -1,6 +1,7 @@
 {% comment %}
   Vista de lista: búsqueda, cabeceras ordenables, totales al pie.
   Uso: {% include "componentes/_lista.html" with lista=lista %}  (lista = core.listas.preparar_lista)
+  Las celdas que el usuario no puede ver llegan con tipo "oculto" y se pintan como «(oculto)».
 {% endcomment %}
 {% if lista.con_busqueda %}
 <form method="get" class="mb-3" role="search">
@@ -34,7 +35,8 @@
           {% for celda in fila.celdas %}
             <td{% if celda.numerica %} class="cifra"{% endif %}>
               {% if forloop.first and fila.url %}<a href="{{ fila.url }}">{% endif %}
-              {% if celda.tipo == "badge" %}<span class="badge text-bg-{{ celda.valor.1 }}">{{ celda.valor.0 }}</span>
+              {% if celda.tipo == "oculto" %}<span class="text-body-secondary">{{ celda.valor }}</span>
+              {% elif celda.tipo == "badge" %}<span class="badge text-bg-{{ celda.valor.1 }}">{{ celda.valor.0 }}</span>
               {% elif celda.numerica %}{{ celda.valor|floatformat:celda.formato }}
               {% else %}{{ celda.valor|default_if_none:"" }}{% endif %}
               {% if forloop.first and fila.url %}</a>{% endif %}

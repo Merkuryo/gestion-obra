@@ -32,8 +32,8 @@ def _registrar(objeto, actor, motivo=None):
     if objeto._state.adding:
         objeto.creado_por = actor
     objeto.modificado_por = actor
-    if motivo:
-        objeto._change_reason = motivo
+    # Siempre se fija (también a None): si no, el motivo anterior se repetiría en el historial
+    objeto._change_reason = motivo
     objeto.save()
 
 

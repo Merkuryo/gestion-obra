@@ -1,4 +1,5 @@
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from django.template.loader import render_to_string
@@ -21,6 +22,9 @@ COLUMNAS = [
 ]
 
 
+SUPERUSUARIO = SimpleNamespace(is_authenticated=True, is_superuser=True)
+
+
 @pytest.fixture
 def secciones(db):
     for codigo, nombre, pct, activa in [
@@ -35,6 +39,7 @@ def secciones(db):
 
 def lista(query="", **kw):
     request = RequestFactory().get("/ajustes/secciones/" + query)
+    request.user = SUPERUSUARIO  # ve todas las columnas
     return preparar_lista(
         request, Seccion.objects.all(), COLUMNAS, buscar_en=("codigo", "nombre"), **kw
     )

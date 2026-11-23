@@ -1,7 +1,9 @@
 """Base de formularios para los componentes de templates/componentes.
 
 Pone las clases de Bootstrap a cada campo, agrupa los campos en pestañas y permite
-mostrar la ficha en solo lectura. Uso:
+mostrar la ficha en solo lectura. Con `usuario`, los campos que no puede ver (importes, márgenes,
+nóminas: core.permisos.campos_ocultos) salen como «(oculto)», no editables, y al guardar
+conservan su valor. Sin `usuario` se ocultan todos esos campos. Uso:
 
     class SeccionForm(FormularioBootstrap, forms.ModelForm):
         grupos = [("General", ["codigo", "nombre"]), ("Económico", ["pct_beneficio_defecto"])]
@@ -12,7 +14,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 
 from .models import PermisoRol, Rol
-from .permisos import ACCIONES, PARTES
+from .permisos import ACCIONES, OCULTO, PARTES, campos_ocultos
 
 
 class FormularioBootstrap:
@@ -20,13 +22,32 @@ class FormularioBootstrap:
     # Los campos que no estén en ningún grupo van en uno final "Otros".
     grupos: list[tuple[str, list[str]]] = []
 
-    def __init__(self, *args, solo_lectura=False, **kwargs):
+    def __init__(self, *args, solo_lectura=False, usuario=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.solo_lectura = solo_lectura
         for campo in self.fields.values():
             self._poner_clases(campo)
             if solo_lectura:
                 campo.disabled = True
+        self.ocultos = self._ocultar(usuario)
+
+    def _ocultar(self, usuario):
+        """Lo que no puedes ver, no lo puedes editar. Un campo desactivado ignora el POST y se
+        valida y guarda con el valor que ya tenía (o el de por defecto en un alta)."""
+        instancia = getattr(self, "instance", None)
+        if instancia is None:
+            return {}
+        ocultos = {
+            n: permiso
+            for n, permiso in campos_ocultos(usuario, instancia).items()
+            if n in self.fields
+        }
+        for nombre, permiso in ocultos.items():
+            campo = self.fields[nombre]
+            campo.disabled = True
+            campo.widget = CampoOcultoInput(attrs={"class": "form-control"})
+            campo.help_text = f"Necesitas el permiso «{permiso}» para verlo."
+        return ocultos
 
     @staticmethod
     def _poner_clases(campo):
@@ -72,6 +93,13 @@ class FormularioBootstrap:
 
     def campos_ocultos(self):
         return [c for c in self if c.is_hidden]
+
+
+class CampoOcultoInput(forms.TextInput):
+    """Muestra «(oculto)» y nunca el valor guardado."""
+
+    def format_value(self, value):
+        return OCULTO
 
 
 class ColorInput(forms.TextInput):

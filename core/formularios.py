@@ -4,7 +4,8 @@ Pone las clases de Bootstrap a cada campo, agrupa los campos en pestañas y perm
 mostrar la ficha en solo lectura. Con `usuario`, los campos que no puede ver (importes, márgenes,
 nóminas: core.permisos.campos_ocultos) salen como «(oculto)», no editables, y al guardar
 conservan su valor. Sin `usuario` se ocultan todos esos campos. En un alta con `usuario`, el
-campo `seccion` sale con la sección elegida en el selector de la barra (editable). Uso:
+campo `seccion` sale con la sección elegida en el selector de la barra (editable); el campo
+solo ofrece secciones activas, más la que ya tenga el registro al editarlo. Uso:
 
     class SeccionForm(FormularioBootstrap, forms.ModelForm):
         grupos = [("General", ["codigo", "nombre"]), ("Económico", ["pct_beneficio_defecto"])]
@@ -13,6 +14,7 @@ campo `seccion` sale con la sección elegida en el selector de la barra (editabl
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.db.models import Q
 
 from .models import PermisoRol, Rol
 from .permisos import ACCIONES, OCULTO, PARTES, campos_ocultos
@@ -33,7 +35,23 @@ class FormularioBootstrap:
             if solo_lectura:
                 campo.disabled = True
         self.ocultos = self._ocultar(usuario)
+        self._limitar_secciones()
         self._seccion_por_defecto(usuario, kwargs.get("initial") or {})
+
+    def _limitar_secciones(self):
+        """El campo `seccion` ofrece las secciones activas y, al editar, también la que ya tenga
+        el registro aunque esté archivada (se ve como valor actual y no se pierde al guardar)."""
+        from empresa.models import Seccion
+
+        campo = self.fields.get(CAMPO_SECCION)
+        queryset = getattr(campo, "queryset", None)
+        if queryset is None or queryset.model is not Seccion:
+            return
+        instancia = getattr(self, "instance", None)
+        actual = getattr(instancia, f"{CAMPO_SECCION}_id", None) if instancia else None
+        condicion = Q(activa=True) | Q(pk=actual) if actual else Q(activa=True)
+        campo.queryset = queryset.filter(condicion)
+        campo.label_from_instance = lambda s: str(s) if s.activa else f"{s} (archivada)"
 
     def _seccion_por_defecto(self, usuario, inicial):
         """En un alta, la sección elegida en el selector, salvo que la vista ya traiga otra."""

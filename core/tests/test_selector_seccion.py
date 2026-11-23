@@ -343,3 +343,49 @@ def test_sin_usuario_no_hay_seccion_por_defecto(secciones):
 
 def test_selector_con_usuario_anonimo():
     assert seccion_elegida(SimpleNamespace(is_authenticated=False, seccion_elegida_id=1)) is None
+
+
+# ── Secciones que ofrece el campo ──────────────────────────────────────────────
+
+
+def _opciones(form):
+    return {s.pk for s in form.fields["seccion"].queryset}
+
+
+@pytest.mark.django_db
+def test_en_un_alta_solo_se_ofrecen_las_activas(usuario_con_rol, secciones):
+    servicios_empresa.archivar_seccion(secciones["ALB"], None)
+    form = DocumentoForm(usuario=usuario_con_rol("Gerencia"))
+    assert _opciones(form) == {secciones["PT"].pk, secciones["PYL"].pk}
+    assert "Albañilería" not in str(form["seccion"])
+
+    # Tampoco se acepta por POST
+    form = DocumentoForm({"nombre": "Muro", "seccion": secciones["ALB"].pk})
+    assert not form.is_valid() and "seccion" in form.errors
+
+
+@pytest.mark.django_db
+def test_al_editar_se_conserva_la_seccion_archivada(usuario_con_rol, documentos, secciones):
+    u = usuario_con_rol("Gerencia")
+    techos = documentos[2]  # de Pladur
+    servicios_empresa.archivar_seccion(secciones["PYL"], u)
+
+    form = DocumentoForm(instance=techos, usuario=u)
+    assert _opciones(form) == {s.pk for s in secciones.values()}  # las activas y la suya
+    assert form["seccion"].value() == secciones["PYL"].pk
+    opcion = f'value="{secciones["PYL"].pk}" selected>PYL — Pladur (archivada)'
+    assert opcion in str(form["seccion"])
+
+    # Guardar sin tocar la sección la conserva
+    form = DocumentoForm(
+        {"nombre": "Techos altos", "seccion": secciones["PYL"].pk}, instance=techos, usuario=u
+    )
+    assert form.is_valid(), form.errors
+    form.save()
+    techos.refresh_from_db()
+    assert techos.seccion == secciones["PYL"] and techos.nombre == "Techos altos"
+
+    # Otra sección archivada distinta de la suya no se ofrece
+    servicios_empresa.archivar_seccion(secciones["ALB"], u)
+    form = DocumentoForm({"nombre": "Techos", "seccion": secciones["ALB"].pk}, instance=techos)
+    assert not form.is_valid() and "seccion" in form.errors

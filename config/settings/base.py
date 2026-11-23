@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.humanize",
+    "django.forms",  # plantillas de widgets propias en templates/componentes (FORM_RENDERER)
     "django_htmx",
     "simple_history",
     # Apps propias: primero las básicas, después las que dependen de ellas
@@ -55,10 +56,13 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "empresa.context_processors.empresa",
+                "core.context_processors.selector_seccion",
             ],
         },
     },
 ]
+# Los widgets se pintan con las mismas plantillas que el resto (templates/componentes)
+FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 
 # En Docker siempre es PostgreSQL (.env). SQLite solo como último recurso fuera de Docker.
 DATABASES = {"default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")}

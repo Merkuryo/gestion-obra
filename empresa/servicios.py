@@ -2,7 +2,9 @@
 
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from .models import Empresa, Seccion
 
@@ -45,25 +47,36 @@ def guardar_empresa(empresa: Empresa, usuario, quitar_logo: bool = False) -> Emp
     return empresa
 
 
+def _soltar_si_archivada(seccion: Seccion):
+    """Quien trabajaba en una sección que se archiva vuelve a «Todas» en el selector."""
+    if not seccion.activa:
+        get_user_model().objects.filter(seccion_elegida=seccion).update(seccion_elegida=None)
+
+
+@transaction.atomic
 def guardar_seccion(seccion: Seccion, usuario) -> Seccion:
     """Guarda una sección (alta o edición) con quién y cuándo."""
     if seccion._state.adding:
         seccion.creado_por = usuario
     seccion.modificado_por = usuario
     seccion.save()
+    _soltar_si_archivada(seccion)
     return seccion
 
 
 def archivar_seccion(seccion: Seccion, usuario) -> Seccion:
     """Una sección no se borra, se archiva: sus documentos siguen apuntando a ella.
 
-    Da un error claro si ya estaba archivada.
+    Da un error claro si ya estaba archivada. Quien la tenía elegida en el selector vuelve a
+    «Todas».
     """
     if not seccion.activa:
         raise ValidationError(f"La sección {seccion.codigo} ya está archivada.")
     seccion.activa = False
     seccion.modificado_por = usuario
-    seccion.save()
+    with transaction.atomic():
+        seccion.save()
+        _soltar_si_archivada(seccion)
     return seccion
 
 

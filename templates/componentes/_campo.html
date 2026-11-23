@@ -1,6 +1,13 @@
 {% comment %}Un campo de formulario. Uso: {% include "componentes/_campo.html" with campo=campo %}{% endcomment %}
 {% if not campo.is_hidden %}
-  {% if campo.widget_type == "checkbox" %}
+  {% if campo.widget_type == "selectormultiple" %}
+    <div class="mb-3" role="group" aria-labelledby="{{ campo.auto_id }}_etiqueta">
+      <div class="form-label" id="{{ campo.auto_id }}_etiqueta">{{ campo.label }}</div>
+      {{ campo }}
+      {% if campo.help_text %}<div class="form-text">{{ campo.help_text }}</div>{% endif %}
+      {% if campo.errors %}<div class="invalid-feedback d-block">{{ campo.errors|join:" " }}</div>{% endif %}
+    </div>
+  {% elif campo.widget_type == "checkbox" %}
     <div class="form-check form-switch mb-3">
       {{ campo }}
       <label class="form-check-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>

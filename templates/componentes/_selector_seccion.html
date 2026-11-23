@@ -1,0 +1,26 @@
+{% comment %}
+  Selector de sección de la barra superior (core/secciones.py). Lo incluye base.html y lo
+  devuelve core/vistas_seccion.ElegirSeccion al cambiarlo con HTMX. Solo sale si la empresa tiene
+  secciones activas. Sin JavaScript, el formulario se envía y vuelve a la misma página.
+{% endcomment %}
+{% with s=selector_seccion %}{% if s.secciones %}
+<form id="selector-seccion" class="dropdown" method="post" action="{% url 'elegir_seccion' %}"
+      hx-post="{% url 'elegir_seccion' %}" hx-target="this" hx-swap="outerHTML">
+  {% csrf_token %}
+  <input type="hidden" name="siguiente" value="{{ siguiente|default:request.get_full_path }}">
+  <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
+          aria-expanded="false" title="Sección de trabajo: filtra las listas y es la de las altas">
+    <i class="bi bi-diagram-3" aria-hidden="true"></i>
+    <span class="visually-hidden">Sección de trabajo:</span>
+    {% if s.elegida %}{{ s.elegida.codigo }} · {{ s.elegida.nombre }}{% else %}Todas las secciones{% endif %}
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><h6 class="dropdown-header">Sección de trabajo</h6></li>
+    <li><button type="submit" name="seccion" value="" class="dropdown-item{% if not s.elegida %} active{% endif %}"{% if not s.elegida %} aria-current="true"{% endif %}>Todas</button></li>
+    <li><hr class="dropdown-divider"></li>
+    {% for seccion in s.secciones %}
+      <li><button type="submit" name="seccion" value="{{ seccion.pk }}" class="dropdown-item{% if seccion == s.elegida %} active{% endif %}"{% if seccion == s.elegida %} aria-current="true"{% endif %}>{{ seccion.codigo }} — {{ seccion.nombre }}</button></li>
+    {% endfor %}
+  </ul>
+</form>
+{% endif %}{% endwith %}

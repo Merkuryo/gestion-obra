@@ -1,4 +1,5 @@
-"""Lógica de roles y permisos. Las vistas llaman aquí; nunca cambian roles por su cuenta.
+"""Lógica de roles y permisos, y de la sección de trabajo de cada usuario. Las vistas llaman
+aquí; nunca cambian roles ni la sección elegida por su cuenta.
 
 Salvaguardas (se comprueban al final de cada cambio, dentro de la transacción; si fallan,
 no se guarda nada):
@@ -117,3 +118,16 @@ def duplicar_rol(origen, actor):
         ver_margenes=origen.ver_margenes,
     )
     return guardar_rol(copia, permisos_de(origen), usuarios=None, actor=actor)
+
+
+# ── Sección de trabajo (selector de la barra superior) ──────────────────────────
+
+
+def elegir_seccion(usuario, seccion):
+    """Guarda la sección en la que trabaja el usuario (None = «Todas»). Solo secciones activas.
+    Filtra lo que el usuario ya puede ver; no cambia sus permisos."""
+    if seccion is not None and not seccion.activa:
+        raise ValidationError(f"La sección {seccion.codigo} está archivada.")
+    usuario.seccion_elegida = seccion
+    usuario.save(update_fields=["seccion_elegida"])
+    return seccion

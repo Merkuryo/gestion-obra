@@ -34,11 +34,14 @@
     .lanzador .icono { width: 64px; height: 64px; border-radius: 14px; font-size: 1.9rem;
       display: flex; align-items: center; justify-content: center; color: #fff;
       background: var(--bs-primary); margin: 0 auto .5rem; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+    [x-cloak] { display: none !important; }
     .lanzador .modulo.inactivo .icono { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); box-shadow: none; }
   </style>
   {% block cabecera %}{% endblock %}
 </head>
-<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+{# Al cambiar la sección del selector, las páginas con listas filtradas por sección se recargan #}
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      x-data x-on:seccion-cambiada="document.querySelector('[data-filtra-seccion]') && location.reload()">
   {% if user.is_authenticated %}
   <nav class="navbar navbar-expand bg-body border-bottom px-3 py-1">
     <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'inicio' %}" title="Aplicaciones">
@@ -47,7 +50,9 @@
       <span class="fw-semibold">{{ empresa|default:"Gestión de obra" }}</span>
     </a>
     {% block menu_modulo %}{% endblock %}
-    <div class="ms-auto dropdown">
+    <div class="ms-auto d-flex align-items-center gap-2">
+    {% include "componentes/_selector_seccion.html" %}
+    <div class="dropdown">
       <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown">
         <i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}
       </button>
@@ -58,6 +63,7 @@
           <button class="dropdown-item"><i class="bi bi-box-arrow-right"></i> Salir</button></form></li>
       </ul>
     </div>
+    </div>
   </nav>
   {% endif %}
   <main class="container-xl py-4">
@@ -67,6 +73,8 @@
   </main>
   <script src="{% static 'vendor/bootstrap-5.3.8/bootstrap.bundle.min.js' %}"></script>
   <script src="{% static 'vendor/htmx-2.0.11/htmx.min.js' %}"></script>
+  {# Componentes de Alpine propios: antes de Alpine, que los registra al arrancar #}
+  <script defer src="{% static 'componentes/selector-multiple.js' %}"></script>
   <script defer src="{% static 'vendor/alpinejs-3.17.5/alpine.min.js' %}"></script>
   {% block scripts %}{% endblock %}
 </body>

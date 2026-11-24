@@ -1,0 +1,16 @@
+Texto suelto antes del primer registro
+~V|EMPRESA DE EJEMPLO|FIEBDC-3/2002|Programa de ejemplo||ANSI||
+~C||m2|Concepto sin código|1|||
+~C|P1|m2|Partida con precio mal escrito|12,5x|01132026|9|
+~C|C1#||Capítulo único||||
+~C|R##||Raíz||||
+~D|R##|C1#\1\1\|
+~D|C1#|P1\1\abc\P9\1\1\P2\1\2\|
+~C|P2|m2|Partida con un auxiliar circular|5|||
+~D|P2|A1\1\1\|
+~C|A1|ud|Auxiliar que se contiene a sí mismo|1||0|
+~D|A1|P2\1\1\|
+~M|C1#\P9||10|\Línea\2\3\\\|
+~Q|registro de otro tipo|
+~C sin barras
+~T|NOEXISTE|Texto de un concepto que no existe|

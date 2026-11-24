@@ -1,0 +1,33 @@
+~V|EMPRESA DE EJEMPLO|FIEBDC-3/2016\24112026|Programa de ejemplo 1.0|Reforma de ejemplo\Presupuesto\|ANSI|Fichero de prueba creado a mano|2|||
+~K|2\2\2\3\2\2\2\2\EUR\|0\13\6\0\21|3\2\3\3\3\3\2\2\2\2\2\2\2\EUR\|
+~C|REF##||Reforma de baño de ejemplo||24112026|0|
+~D|REF##|01#\1\1\02#\1\1\|
+~C|01#||Albañilería||24112026|0|
+~D|01#|01.1#\1\1\ALB010\1\25.5\|
+~C|01.1#||Tabiques||24112026|0|
+~D|01.1#|ALB020\1\12.75\|
+~C|ALB010|m2|Enlucido de yeso en paredes|12.40|01102026|0|
+~D|ALB010|MO1\1\0.25\MT1\1\1.05\AX1\1\0.01\|
+~T|ALB010|Enlucido de yeso a buena vista sobre paramentos verticales,
+incluso guardavivos. Precio orientativo: 12,40 €/m².|
+~C|ALB020|m2|Tabique de ladrillo hueco doble|18.90|01102026|0|
+~D|ALB020|MO1\1\0.6\MO2\1\0.3\MT2\1\33\AX1\1\0.015\|
+~C|02#||Pintura||24112026|0|
+~D|02#|PIN010\1\40\|
+~C|PIN010|m2|Pintura plástica lisa en paredes|6.75|15102026|0|
+~D|PIN010|MO3\1\0.12\MT3\1.1\0.3\|
+~T|PIN010|Dos manos de pintura plástica, color a elegir.|
+~C|MO1|h|Oficial de primera|22.50|01012026|1|
+~C|MO2|h|Peón ordinario|19.80|01012026|1|
+~C|MO3|h|Oficial pintor|21.00|01012026|1|
+~C|MT1|m2|Yeso en sacos, por m²|1.20|01092026|3|
+~C|MT2|ud|Ladrillo hueco doble|0.18|01092026|3|
+~C|MT3|l|Pintura plástica blanca|4.10|01092026|3|
+~C|AX1|m3|Mortero de cemento M-5|65.00|01092026|0|
+~D|AX1|MO2\1\1.5\MT4\1\0.25\MQ1\1\0.5\|
+~C|MT4|t|Cemento en sacos|98.00|01092026|3|
+~C|MQ1|h|Hormigonera|2.10|01092026|2|
+~M|01#\ALB010|1\2\|25.5|\Salón\1\4.5\2.5\\\Dormitorio\2\3\2.5\\\Hueco de puerta\-1\0.5\1.5\\|
+~M|01.1#\ALB020|1\1\1\|12.75|\Planta baja\1\3\\2.5\1\Subtotal planta baja\\\\\\Aseo\1\2.1\\2.5\|
+~M|02#\PIN010|2\1\|40|\Paredes\1\16\\2.5\|
+~L|ALB010|Pliego de condiciones de ejemplo|

@@ -1,0 +1,31 @@
+{% comment %}
+  Widget core.formularios.SelectorMultiple: varios valores con búsqueda (static/componentes/selector-multiple.js).
+  Sin JavaScript queda la lista de casillas; la búsqueda y las etiquetas llevan x-cloak y solo
+  aparecen con Alpine.js.
+{% endcomment %}
+<div class="selector-multiple" x-data="selectorMultiple" id="{{ widget.attrs.id }}">
+  <div class="d-flex flex-wrap gap-1 mb-2" x-cloak x-show="elegidos.length" aria-live="polite">
+    <template x-for="o in elegidos" :key="o.valor">
+      <button type="button" class="btn btn-sm btn-outline-primary py-0" x-on:click="quitar(o.valor)"
+              x-bind:disabled="o.desactivado" x-bind:aria-label="'Quitar ' + o.texto">
+        <span x-text="o.texto"></span> <i class="bi bi-x" aria-hidden="true"></i>
+      </button>
+    </template>
+  </div>
+  <input type="search" class="form-control form-control-sm mb-1" placeholder="Buscar…" autocomplete="off"
+         aria-label="Buscar" aria-controls="{{ widget.attrs.id }}_opciones" x-cloak x-ref="buscar" x-model="q"
+         x-on:keydown.down.prevent="enfocar(0)" x-on:keydown.enter.prevent="marcarPrimera()"
+         x-on:keydown.escape.prevent="q = ''">
+  <div class="border rounded bg-body px-2 py-1 overflow-auto" style="max-height: 14rem;" id="{{ widget.attrs.id }}_opciones"
+       x-on:change="leer()" x-on:keydown.down.prevent="mover(1)" x-on:keydown.up.prevent="mover(-1)">
+    {% for _grupo, opciones, _indice in widget.optgroups %}{% for o in opciones %}
+      <div class="form-check" x-show="coincide($el)">
+        <input type="checkbox" class="form-check-input" name="{{ o.name }}" value="{{ o.value|stringformat:'s' }}" id="{{ o.attrs.id }}"{% if o.selected %} checked{% endif %}{% if o.attrs.disabled %} disabled{% endif %}>
+        <label class="form-check-label" for="{{ o.attrs.id }}">{{ o.label }}</label>
+      </div>
+    {% endfor %}{% empty %}
+      <p class="text-body-secondary small my-1">No hay opciones.</p>
+    {% endfor %}
+    <p class="text-body-secondary small my-1" x-cloak x-show="q && !hayVisibles">Ningún resultado.</p>
+  </div>
+</div>

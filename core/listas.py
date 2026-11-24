@@ -6,6 +6,7 @@ from decimal import Decimal
 from django.db.models import Q, Sum
 
 from .permisos import OCULTO, campos_ocultos
+from .secciones import filtra_por_seccion, filtrar_por_seccion
 
 
 @dataclass
@@ -49,15 +50,22 @@ def _url_orden(request, campo, orden_actual):
     return "?" + parametros.urlencode()
 
 
-def preparar_lista(request, queryset, columnas, buscar_en=(), url_fila=None):
+def preparar_lista(request, queryset, columnas, buscar_en=(), url_fila=None, por_seccion=True):
     """Aplica `?q=` y `?orden=` y devuelve todo lo que necesita `componentes/_lista.html`.
 
+    - Sección: si el modelo tiene campo `seccion`, se filtra por la sección elegida en el
+      selector de la barra (core/secciones.py); con «Todas» no se filtra. `queryset` llega ya
+      limitado por permisos y ámbito: el filtro solo lo reduce. `por_seccion=False` lo desactiva.
     - Orden: solo por columnas declaradas `ordenable`; cualquier otro valor se ignora.
     - Totales: `aggregate(Sum)` sobre el queryset filtrado completo, en Decimal.
     """
     # Lo que el usuario no puede ver (importes, márgenes, nóminas) no se muestra, ni se busca,
     # ni se ordena, ni se suma: core.permisos.campos_ocultos
     usuario = getattr(request, "user", None)
+    filtra_seccion = por_seccion and filtra_por_seccion(queryset.model)
+    seccion = None
+    if filtra_seccion:
+        queryset, seccion = filtrar_por_seccion(queryset, usuario)
     ocultas = set(campos_ocultos(usuario, queryset.model()))
     buscar_en = tuple(c for c in buscar_en if c.split("__")[0] not in ocultas)
     columnas_orden = [c for c in columnas if c.campo not in ocultas]
@@ -132,4 +140,6 @@ def preparar_lista(request, queryset, columnas, buscar_en=(), url_fila=None):
         "totales": totales,
         "num_registros": len(filas),
         "con_busqueda": bool(buscar_en),
+        "filtra_seccion": filtra_seccion,  # la lista se recarga al cambiar el selector
+        "seccion": seccion,  # sección por la que está filtrada, o None
     }

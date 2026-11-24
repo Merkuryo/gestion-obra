@@ -11,6 +11,16 @@ class Usuario(AbstractUser):
     cargo = models.CharField(
         max_length=100, blank=True, help_text="Aparece en la firma de las ofertas."
     )
+    # Selector de sección de la barra superior (core/secciones.py). Vacío = todas las secciones.
+    seccion_elegida = models.ForeignKey(
+        "empresa.Seccion",
+        verbose_name="sección de trabajo",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="Filtra las listas y es la sección por defecto al crear documentos.",
+    )
 
     class Meta:
         verbose_name = "usuario"

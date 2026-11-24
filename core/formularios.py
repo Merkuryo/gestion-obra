@@ -3,7 +3,9 @@
 Pone las clases de Bootstrap a cada campo, agrupa los campos en pestañas y permite
 mostrar la ficha en solo lectura. Con `usuario`, los campos que no puede ver (importes, márgenes,
 nóminas: core.permisos.campos_ocultos) salen como «(oculto)», no editables, y al guardar
-conservan su valor. Sin `usuario` se ocultan todos esos campos. Uso:
+conservan su valor. Sin `usuario` se ocultan todos esos campos. En un alta con `usuario`, el
+campo `seccion` sale con la sección elegida en el selector de la barra (editable); el campo
+solo ofrece secciones activas, más la que ya tenga el registro al editarlo. Uso:
 
     class SeccionForm(FormularioBootstrap, forms.ModelForm):
         grupos = [("General", ["codigo", "nombre"]), ("Económico", ["pct_beneficio_defecto"])]
@@ -12,9 +14,12 @@ conservan su valor. Sin `usuario` se ocultan todos esos campos. Uso:
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.db.models import Q
 
 from .models import PermisoRol, Rol
 from .permisos import ACCIONES, OCULTO, PARTES, campos_ocultos
+from .secciones import CAMPO as CAMPO_SECCION
+from .secciones import seccion_elegida
 
 
 class FormularioBootstrap:
@@ -30,6 +35,41 @@ class FormularioBootstrap:
             if solo_lectura:
                 campo.disabled = True
         self.ocultos = self._ocultar(usuario)
+        self._limitar_secciones()
+        self._seccion_por_defecto(usuario, kwargs.get("initial") or {})
+
+    def _limitar_secciones(self):
+        """El campo `seccion` ofrece las secciones activas y, al editar, también la que ya tenga
+        el registro aunque esté archivada (se ve como valor actual y no se pierde al guardar)."""
+        from empresa.models import Seccion
+
+        campo = self.fields.get(CAMPO_SECCION)
+        queryset = getattr(campo, "queryset", None)
+        if queryset is None or queryset.model is not Seccion:
+            return
+        instancia = getattr(self, "instance", None)
+        actual = getattr(instancia, f"{CAMPO_SECCION}_id", None) if instancia else None
+        condicion = Q(activa=True) | Q(pk=actual) if actual else Q(activa=True)
+        campo.queryset = queryset.filter(condicion)
+        campo.label_from_instance = lambda s: str(s) if s.activa else f"{s} (archivada)"
+
+    def _seccion_por_defecto(self, usuario, inicial):
+        """En un alta, la sección elegida en el selector, salvo que la vista ya traiga otra."""
+        instancia = getattr(self, "instance", None)
+        if (
+            usuario is None
+            or self.is_bound
+            or instancia is None
+            or not instancia._state.adding
+            or CAMPO_SECCION not in self.fields
+            or CAMPO_SECCION in self.ocultos
+            or CAMPO_SECCION in inicial
+            or getattr(instancia, f"{CAMPO_SECCION}_id", None)
+        ):
+            return
+        seccion = seccion_elegida(usuario)
+        if seccion is not None:
+            self.initial[CAMPO_SECCION] = seccion.pk
 
     def _ocultar(self, usuario):
         """Lo que no puedes ver, no lo puedes editar. Un campo desactivado ignora el POST y se
@@ -52,6 +92,8 @@ class FormularioBootstrap:
     @staticmethod
     def _poner_clases(campo):
         widget = campo.widget
+        if getattr(widget, "sin_clases", False):
+            return
         tipo = getattr(widget, "input_type", "")
         if tipo == "checkbox":
             clase = "form-check-input"
@@ -95,6 +137,19 @@ class FormularioBootstrap:
         return [c for c in self if c.is_hidden]
 
 
+class SelectorMultiple(forms.CheckboxSelectMultiple):
+    """Selección de varios valores con búsqueda (componentes/_selector_multiple.html).
+
+    Sin JavaScript es una lista de casillas; con Alpine.js añade la búsqueda (sin tildes ni
+    mayúsculas), las etiquetas de lo elegido y el manejo por teclado: ↓ desde la búsqueda pasa
+    a las opciones, ↑/↓ entre ellas, espacio marca, Intro en la búsqueda marca la primera que
+    coincide y Escape limpia la búsqueda.
+    """
+
+    template_name = "componentes/_selector_multiple.html"
+    sin_clases = True  # las clases de Bootstrap las pone la plantilla
+
+
 class CampoOcultoInput(forms.TextInput):
     """Muestra «(oculto)» y nunca el valor guardado."""
 
@@ -122,7 +177,7 @@ class RolForm(FormularioBootstrap, forms.ModelForm):
     usuarios = forms.ModelMultipleChoiceField(
         queryset=None,
         required=False,
-        widget=forms.CheckboxSelectMultiple,
+        widget=SelectorMultiple,
         help_text="Usuarios que tienen este rol.",
     )
 
@@ -140,8 +195,6 @@ class RolForm(FormularioBootstrap, forms.ModelForm):
         super().__init__(*args, **kwargs)
         usuarios = get_user_model().objects.filter(is_active=True).order_by("username")
         self.fields["usuarios"].queryset = usuarios
-        # La clase de Bootstrap iría también al contenedor de las casillas y lo deformaría
-        self.fields["usuarios"].widget.attrs.pop("class", None)
         self.fields["usuarios"].label_from_instance = lambda u: (
             f"{u.get_full_name()} ({u.username})" if u.get_full_name() else u.username
         )

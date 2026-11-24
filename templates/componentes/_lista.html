@@ -2,7 +2,19 @@
   Vista de lista: búsqueda, cabeceras ordenables, totales al pie.
   Uso: {% include "componentes/_lista.html" with lista=lista %}  (lista = core.listas.preparar_lista)
   Las celdas que el usuario no puede ver llegan con tipo "oculto" y se pintan como «(oculto)».
+  Si la lista está filtrada por la sección del selector, lo dice arriba con «ver todas».
 {% endcomment %}
+<div{% if lista.filtra_seccion %} data-filtra-seccion{% endif %}>
+{% if lista.seccion %}
+<form method="post" action="{% url 'elegir_seccion' %}" hx-post="{% url 'elegir_seccion' %}"
+      hx-target="#selector-seccion" hx-swap="outerHTML"
+      class="alert alert-light border d-flex flex-wrap align-items-center gap-1 py-2 mb-3">
+  {% csrf_token %}
+  <input type="hidden" name="siguiente" value="{{ request.get_full_path }}">
+  <i class="bi bi-funnel" aria-hidden="true"></i> Mostrando: <strong>{{ lista.seccion.nombre }}</strong> ·
+  <button type="submit" name="seccion" value="" class="btn btn-link btn-sm p-0 align-baseline">ver todas</button>
+</form>
+{% endif %}
 {% if lista.con_busqueda %}
 <form method="get" class="mb-3" role="search">
   {% if lista.orden %}<input type="hidden" name="orden" value="{{ lista.orden }}">{% endif %}
@@ -61,3 +73,4 @@
   </table>
 </div>
 <p class="text-body-secondary small">{{ lista.num_registros }} registro{{ lista.num_registros|pluralize }}</p>
+</div>

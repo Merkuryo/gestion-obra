@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, vistas_historial, vistas_roles
+from . import views, vistas_historial, vistas_roles, vistas_seccion
 
 urlpatterns = [
     path("", views.inicio, name="inicio"),
@@ -12,6 +12,7 @@ urlpatterns = [
         vistas_roles.DuplicarRol.as_view(),
         name="rol_duplicar",
     ),
+    path("seccion/", vistas_seccion.ElegirSeccion.as_view(), name="elegir_seccion"),
     path(
         "historial/<str:app>/<str:modelo>/<int:pk>/",
         vistas_historial.MasHistorial.as_view(),

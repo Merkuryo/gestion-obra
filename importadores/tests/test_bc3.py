@@ -233,12 +233,38 @@ def test_el_total_de_la_medicion_se_redondea_con_los_decimales_de_k():
     assert con_uno.decimales.medicion_total == 1
     assert m.total_calculado == Decimal("1.2") and con_uno.avisos == []
 
-    # DS = 3 decimales (campo 3, que manda sobre el 1): 1,234 ≠ 1,2 → aviso
-    con_tres = leer_bc3(bc3(r"~K|2\2\1\3\2\2\2\2\EUR\||3\2\3\3\3\3\2\2\2\2\3\2\2\EUR\|", *MEDICION))
+    # DS = 3 decimales: 1,234 ≠ 1,2 → aviso, y se respeta el total del fichero
+    con_tres = leer_bc3(bc3(r"~K|2\2\3\3\2\2\2\2\EUR\||", *MEDICION))
     m = con_tres.mediciones[0]
     assert con_tres.decimales.medicion_total == 3 and m.total_calculado == Decimal("1.234")
-    assert m.total == Decimal("1.2")  # se respeta el del fichero
+    assert m.total == Decimal("1.2")
     assert any("dice 1.2 y sus líneas suman 1.234" in a for a in mensajes(con_tres, AVISO))
+
+
+def test_la_suma_redondeada_que_cuadra_no_da_aviso():
+    """59,278 redondeado a 2 decimales es 59,28: cuadra con el total del fichero."""
+    lineas = (*MEDICION[:-1], r"~M|C#\P||59.28|\A\1\12.4\\2.7\\B\1\10.8\\2.7\\C\-2\0.82\\2.05\|")
+    sin_k = leer_bc3(bc3(*lineas))
+    assert sin_k.mediciones[0].total_calculado == Decimal("59.28") and sin_k.avisos == []
+    con_k = leer_bc3(bc3(r"~K|2\2\2\3\2\2\2\2\EUR\||", *lineas))
+    assert con_k.avisos == []
+
+
+def test_el_campo_3_de_k_se_guarda_pero_no_cambia_el_redondeo():
+    # Campo 1 con DS = 2 y un campo 3 en el que la posición de DS vale 3
+    r = leer_bc3(bc3(r"~K|\2\2\3\3\2\2\2\EUR\|13\6\0\21|3\2\\2\2\\2\2\2\3\3\2\2\2\EUR\|"))
+    assert r.decimales.campo_1["DS"] == 2 and r.decimales.campo_3["DS"] == 3
+    assert r.decimales.medicion_total == 2
+
+
+def test_presupuesto_de_ejemplo_sin_avisos_de_medicion():
+    r = leer_bc3(MUESTRAS / "presupuesto_ejemplo_reforma.bc3")
+    assert r.es_valido
+    assert r.recuento()["partidas"] == 8 and r.recuento()["mediciones"] == 8
+    assert not [a for a in mensajes(r, AVISO) if "medición" in a.lower()]
+    alb01 = next(n for n in r.partidas if n.codigo == "ALB01")
+    assert alb01.medicion.total == Decimal("59.28")
+    assert alb01.medicion.total_calculado == Decimal("59.28")  # las líneas suman 59,278
 
 
 def test_sin_k_se_usan_dos_decimales():

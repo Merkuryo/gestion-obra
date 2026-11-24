@@ -200,16 +200,12 @@ class Decimales:
     divisa: str = ""
     porcentajes: dict[str, Decimal] = field(default_factory=dict)
 
-    def _valor(self, nombre):
-        for campo in (self.campo_3, self.campo_1):
-            if nombre in campo:
-                return campo[nombre]
-        return DECIMALES_MEDICION_POR_DEFECTO
-
     @property
     def medicion_total(self) -> int:
-        """DS: decimales del total de una medición."""
-        return self._valor("DS")
+        """DS del campo 1 (DN\\DD\\DS\\…): decimales del total de una medición; 2 si no viene.
+        El campo 3 se guarda tal cual, pero no se usa para redondear: su orden de subcampos
+        varía entre programas."""
+        return self.campo_1.get("DS", DECIMALES_MEDICION_POR_DEFECTO)
 
 
 @dataclass
@@ -659,7 +655,8 @@ class _Lector:
         )
 
     def _total_medicion(self, codigo, lineas, linea):
-        """Suma de las líneas normales, redondeada con los decimales DS de ~K. None si hay
+        """Suma de las líneas normales, redondeada con los decimales DS de ~K antes de compararla
+        con el total del fichero (59,278 → 59,28 con DS = 2). None si hay
         expresiones (no se evalúan) o no hay ninguna línea con cifras."""
         tipos = {LINEA_NORMAL, SUBTOTAL_PARCIAL, SUBTOTAL_ACUMULADO, EXPRESION}
         for desconocido in {ln.tipo for ln in lineas} - tipos:

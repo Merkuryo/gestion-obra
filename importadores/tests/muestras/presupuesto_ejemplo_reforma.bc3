@@ -1,0 +1,69 @@
+~V|Construcciones Ejemplo|FIEBDC-3/2016\24112026|gestion-obra pruebas|Presupuesto de ejemplo\|ANSI|Datos ficticios para pruebas|2|||
+~K|\2\2\3\3\2\2\2\EUR\|13\6\0\21|3\2\\2\2\\2\2\2\3\3\2\2\2\EUR\|
+~C|OBRA##|ud|Reforma de oficinas (ejemplo)|14971.51|241126|0|
+~C|ALB#||Albañilería|3214.96|241126|0|
+~C|PYL#||Placa de yeso laminado|6673.98|241126|0|
+~C|PT#||Pintura|5082.57|241126|0|
+~C|ALB01|m2|Tabique de ladrillo hueco doble de 8 cm|19.02|241126|0|
+~C|ALB02|m2|Fábrica de ladrillo macizo perforado de 1/2 pie|35.17|241126|0|
+~C|ALB03|m2|Guarnecido y enlucido de yeso en paredes|11.31|241126|0|
+~C|PYL01|m2|Tabique de placa de yeso 15+48+15 con aislamiento|31.04|241126|0|
+~C|PYL02|m2|Trasdosado autoportante de placa hidrófuga|22.95|241126|0|
+~C|PYL03|m2|Falso techo continuo de placa de yeso|27.03|241126|0|
+~C|PT01|m2|Pintura plástica lisa en paramentos interiores|5.35|241126|0|
+~C|PT02|m2|Pintura acrílica en fachada con andamio|8.92|241126|0|
+~C|MO.OF1|h|Oficial 1ª construcción|22.5|241126|1|
+~C|MO.AYU|h|Ayudante construcción|20.4|241126|1|
+~C|MO.PEO|h|Peón ordinario|19.6|241126|1|
+~C|MO.OFP|h|Oficial 1ª montador de placa|23.1|241126|1|
+~C|MO.AYP|h|Ayudante montador de placa|20.8|241126|1|
+~C|MO.OFT|h|Oficial 1ª pintor|22.2|241126|1|
+~C|MO.AYT|h|Ayudante pintor|20.1|241126|1|
+~C|MQ.HOR|h|Hormigonera eléctrica 160 l|2.15|241126|2|
+~C|MQ.AND|d|Andamio tubular, alquiler diario por m²|0.45|241126|2|
+~C|MT.LHD|ud|Ladrillo cerámico hueco doble 24x11,5x8 cm|0.14|241126|3|
+~C|MT.LMP|ud|Ladrillo cerámico macizo perforado 24x11,5x5 cm|0.21|241126|3|
+~C|MT.MOR|m3|Mortero de cemento M-7,5 elaborado en obra|88|241126|3|
+~C|MT.YES|kg|Yeso de construcción en sacos|0.12|241126|3|
+~C|MT.PYL13|m2|Placa de yeso laminado estándar 12,5 mm|3.25|241126|3|
+~C|MT.PYLH|m2|Placa de yeso laminado hidrófuga 12,5 mm|4.9|241126|3|
+~C|MT.MON48|m|Montante de acero galvanizado 48 mm|1.42|241126|3|
+~C|MT.CAN48|m|Canal de acero galvanizado 48 mm|1.28|241126|3|
+~C|MT.TOR|ud|Tornillo autoperforante para placa|0.012|241126|3|
+~C|MT.PAS|kg|Pasta de juntas para placa de yeso|1.1|241126|3|
+~C|MT.CIN|m|Cinta de papel microperforada para juntas|0.05|241126|3|
+~C|MT.LAN|m2|Panel de lana mineral 45 mm|2.7|241126|3|
+~C|MT.BAN|m|Banda acústica bajo perfilería|0.32|241126|3|
+~C|MT.IMP|l|Imprimación selladora al agua|4.3|241126|3|
+~C|MT.PPL|l|Pintura plástica mate interior|3.9|241126|3|
+~C|MT.PPE|l|Pintura acrílica lisa para exteriores|6.4|241126|3|
+~C|MT.MAS|kg|Masilla al agua para plastecido|1.85|241126|3|
+~C|MT.LIJ|ud|Lija y material de protección|0.35|241126|3|
+~D|OBRA##|ALB#\1\1\PYL#\1\1\PT#\1\1\|
+~D|ALB#|ALB01\1\59.28\ALB02\1\19.22\ALB03\1\124.80\|
+~D|PYL#|PYL01\1\57.20\PYL02\1\38.00\PYL03\1\148.96\|
+~D|PT#|PT01\1\416.08\PT02\1\320.24\|
+~D|ALB01|MO.OF1\1\0.42\MO.PEO\1\0.21\MT.LHD\1\33\MT.MOR\1\0.009\MQ.HOR\1\0.02\|
+~D|ALB02|MO.OF1\1\0.68\MO.PEO\1\0.34\MT.LMP\1\52\MT.MOR\1\0.025\MQ.HOR\1\0.04\|
+~D|ALB03|MO.OF1\1\0.3\MO.PEO\1\0.15\MT.YES\1\13.5\|
+~D|PYL01|MO.OFP\1\0.36\MO.AYP\1\0.36\MT.PYL13\1\2.1\MT.MON48\1\2\MT.CAN48\1\0.9\MT.TOR\1\28\MT.PAS\1\0.65\MT.CIN\1\3\MT.LAN\1\1.05\MT.BAN\1\1.2\|
+~D|PYL02|MO.OFP\1\0.3\MO.AYP\1\0.3\MT.PYLH\1\1.05\MT.MON48\1\2\MT.CAN48\1\0.9\MT.TOR\1\15\MT.PAS\1\0.35\MT.CIN\1\1.6\|
+~D|PYL03|MO.OFP\1\0.4\MO.AYP\1\0.4\MT.PYL13\1\1.05\MT.MON48\1\3.2\MT.CAN48\1\0.6\MT.TOR\1\18\MT.PAS\1\0.4\MT.CIN\1\1.8\|
+~D|PT01|MO.OFT\1\0.13\MO.AYT\1\0.05\MT.IMP\1\0.1\MT.PPL\1\0.24\MT.MAS\1\0.03\MT.LIJ\1\0.1\|
+~D|PT02|MO.OFT\1\0.18\MO.AYT\1\0.09\MT.IMP\1\0.12\MT.PPE\1\0.3\MQ.AND\1\1.5\|
+~T|ALB01|Tabique de ladrillo cerámico hueco doble de 8 cm de espesor, recibido con mortero de cemento M-7,5, con replanteo, nivelación, aplomado y limpieza.|
+~T|ALB02|Fábrica de ladrillo cerámico macizo perforado de 11,5 cm, a cara vista o para revestir, recibido con mortero M-7,5, incluso replanteo y limpieza.|
+~T|ALB03|Guarnecido de yeso de 15 mm maestreado y enlucido final en paramentos verticales interiores, con guardavivos en esquinas.|
+~T|PYL01|Tabique de una placa de yeso laminado de 12,5 mm a cada cara sobre estructura de acero galvanizado de 48 mm cada 60 cm, con lana mineral de 45 mm en el interior, banda acústica, tornillería, pasta y cinta de juntas, acabado listo para pintar.|
+~T|PYL02|Trasdosado autoportante con una placa de yeso laminado hidrófuga de 12,5 mm sobre montantes de 48 mm cada 60 cm, para zonas húmedas, con tornillería, pasta y cinta de juntas.|
+~T|PYL03|Falso techo continuo de placa de yeso laminado de 12,5 mm sobre perfilería de acero galvanizado suspendida, con juntas tratadas, listo para pintar.|
+~T|PT01|Pintura plástica lisa mate en paramentos verticales y horizontales interiores, con una mano de imprimación selladora y dos manos de acabado, incluso lijado y plastecido de pequeñas imperfecciones.|
+~T|PT02|Pintura acrílica lisa para exteriores en fachada, con imprimación y dos manos de acabado, incluso limpieza previa del soporte y andamio tubular durante la ejecución.|
+~M|ALB#\ALB01||59.28|\Planta baja, distribución\1\12.4\\2.7\\Planta primera, distribución\1\10.8\\2.7\\Hueco de puerta\-2\0.82\\2.05\|
+~M|ALB#\ALB02||19.22|\Medianera patio\1\6.2\\3.1\|
+~M|ALB#\ALB03||124.80|\Paredes dormitorios\1\48.0\\2.6\|
+~M|PYL#\PYL01||57.20|\Distribución oficinas\1\22.5\\2.8\\Hueco de puerta\-3\0.92\\2.1\|
+~M|PYL#\PYL02||38.00|\Baños\2\7.6\\2.5\|
+~M|PYL#\PYL03||148.96|\Oficinas\1\15.2\9.8\\|
+~M|PT#\PT01||416.08|\Paredes oficinas\1\95.4\\2.8\\Techos oficinas\1\15.2\9.8\\|
+~M|PT#\PT02||320.24|\Fachada principal\1\18.5\\9.2\\Fachada posterior\1\18.5\\9.2\\Huecos de ventana\-12\1.2\\1.4\|

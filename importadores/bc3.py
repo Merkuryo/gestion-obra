@@ -50,23 +50,16 @@ TIPOS_INFORMACION = {
 }
 REGISTROS_LEIDOS = ("V", "K", "C", "D", "T", "M")
 
-# Subcampos de ~K, con los nombres de la norma
-DECIMALES_CAMPO_1 = ("DN", "DD", "DS", "DR", "DI", "DP", "DC", "DM")  # por compatibilidad
+# Subcampos de ~K, con los nombres de la norma FIEBDC-3.
+# Campo 1: DN\DD\DS\DR\DI\DP\DC\DM\DIVISA. Se mantiene por compatibilidad con ficheros antiguos.
+DECIMALES_CAMPO_1 = ("DN", "DD", "DS", "DR", "DI", "DP", "DC", "DM")
+# Campo 3, el que rige desde la versión 2004 de la norma:
+#     DRC\DC\\DFS\DRS\\DUO\DI\DES\DN\DD\DS\DSP\DEC\DIVISA
+# Las posiciones 3 y 6 van vacías (reservadas, "" aquí). DN, DD y DS son los decimales de las
+# mediciones (partes iguales, dimensiones y total); los demás se guardan sin usarse aún.
 DECIMALES_CAMPO_3 = (
-    "DRC",
-    "DC",
-    "DFS",
-    "DRS",
-    "DFO",
-    "DRO",
-    "DI",
-    "DES",
-    "DN",
-    "DD",
-    "DS",
-    "DSP",
-    "DEC",
-)
+    "DRC", "DC", "", "DFS", "DRS", "", "DUO", "DI", "DES", "DN", "DD", "DS", "DSP", "DEC",
+)  # fmt: skip
 PORCENTAJES_K = ("CI", "GG", "BI", "BAJA", "IVA")
 DECIMALES_MEDICION_POR_DEFECTO = 2
 
@@ -202,10 +195,12 @@ class Decimales:
 
     @property
     def medicion_total(self) -> int:
-        """DS del campo 1 (DN\\DD\\DS\\…): decimales del total de una medición; 2 si no viene.
-        El campo 3 se guarda tal cual, pero no se usa para redondear: su orden de subcampos
-        varía entre programas."""
-        return self.campo_1.get("DS", DECIMALES_MEDICION_POR_DEFECTO)
+        """DS: decimales del total de una medición. Manda el campo 3 (el de la norma actual);
+        si no lo trae, el campo 1; si tampoco, 2."""
+        for campo in (self.campo_3, self.campo_1):
+            if "DS" in campo:
+                return campo["DS"]
+        return DECIMALES_MEDICION_POR_DEFECTO
 
 
 @dataclass
@@ -498,7 +493,15 @@ class _Lector:
     def _decimales_k(self, texto, nombres, linea):
         valores = _subcampos(texto)
         decimales = {}
-        for nombre, valor in zip(nombres, valores, strict=False):
+        for posicion, (nombre, valor) in enumerate(zip(nombres, valores, strict=False), 1):
+            if not nombre:  # posición reservada: la norma la deja vacía
+                if valor.strip():
+                    self.aviso(
+                        f"~K: la posición {posicion} del campo de decimales está "
+                        f"reservada y debería ir vacía; se ignora «{valor.strip()}».",
+                        linea,
+                    )
+                continue
             numero = self._entero(valor, linea, f"~K {nombre}")
             if numero is not None:
                 decimales[nombre] = numero

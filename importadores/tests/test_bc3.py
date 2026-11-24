@@ -48,7 +48,9 @@ def test_cabecera_v(presupuesto):
 def test_decimales_y_porcentajes_k(presupuesto):
     d = presupuesto.decimales
     assert d.campo_1 == {"DN": 2, "DD": 2, "DS": 2, "DR": 3, "DI": 2, "DP": 2, "DC": 2, "DM": 2}
-    assert d.campo_3["DRC"] == 3 and d.campo_3["DS"] == 2 and len(d.campo_3) == 13
+    # 14 posiciones según la norma, dos de ellas reservadas (vacías): 12 decimales
+    assert d.campo_3["DRC"] == 3 and d.campo_3["DUO"] == 2 and d.campo_3["DS"] == 2
+    assert len(d.campo_3) == 12 and "" not in d.campo_3
     assert d.divisa == "EUR" and d.medicion_total == 2
     assert d.porcentajes == {
         "CI": Decimal("0"),
@@ -250,11 +252,41 @@ def test_la_suma_redondeada_que_cuadra_no_da_aviso():
     assert con_k.avisos == []
 
 
-def test_el_campo_3_de_k_se_guarda_pero_no_cambia_el_redondeo():
-    # Campo 1 con DS = 2 y un campo 3 en el que la posición de DS vale 3
-    r = leer_bc3(bc3(r"~K|\2\2\3\3\2\2\2\EUR\|13\6\0\21|3\2\\2\2\\2\2\2\3\3\2\2\2\EUR\|"))
-    assert r.decimales.campo_1["DS"] == 2 and r.decimales.campo_3["DS"] == 3
-    assert r.decimales.medicion_total == 2
+K_NORMA = r"~K|\2\2\3\3\2\2\2\EUR\|13\6\0\21|3\2\\2\2\\2\2\2\3\3\2\2\2\EUR\|"
+
+
+def test_campo_3_de_k_segun_la_norma():
+    """DRC\\DC\\\\DFS\\DRS\\\\DUO\\DI\\DES\\DN\\DD\\DS\\DSP\\DEC\\DIVISA: las posiciones 3 y 6 van
+    vacías. Así lo escriben los programas de presupuestos (p. ej. la muestra de reforma)."""
+    d = leer_bc3(bc3(K_NORMA)).decimales
+    assert d.campo_3 == {
+        "DRC": 3, "DC": 2, "DFS": 2, "DRS": 2, "DUO": 2, "DI": 2, "DES": 2,
+        "DN": 3, "DD": 3, "DS": 2, "DSP": 2, "DEC": 2,
+    }  # fmt: skip
+    assert d.divisa == "EUR" and d.medicion_total == 2
+
+
+def test_el_ds_del_campo_3_manda_sobre_el_del_campo_1():
+    # Campo 1 con DS = 1 y campo 3 con DS = 3: vale el 3 (la norma actual)
+    k = r"~K|2\2\1\3\2\2\2\2\EUR\||3\2\\3\3\\2\2\2\2\2\3\2\2\EUR\|"
+    r = leer_bc3(bc3(k, *MEDICION))
+    assert r.decimales.campo_1["DS"] == 1 and r.decimales.campo_3["DS"] == 3
+    assert r.decimales.medicion_total == 3
+    assert r.mediciones[0].total_calculado == Decimal("1.234")
+    assert any("suman 1.234" in a for a in mensajes(r, AVISO))
+
+
+def test_sin_campo_3_vale_el_campo_1():
+    r = leer_bc3(bc3(r"~K|2\2\1\3\2\2\2\2\EUR\||", *MEDICION))
+    assert r.decimales.campo_3 == {} and r.decimales.medicion_total == 1
+
+
+def test_posicion_reservada_con_valor_da_aviso():
+    # Orden antiguo sin las dos posiciones vacías: lo que cae en una reservada se avisa
+    r = leer_bc3(bc3(r"~K|||3\2\3\3\3\3\2\2\2\2\2\2\2\EUR\|"))
+    reservadas = [a for a in r.avisos if "reservada" in a.mensaje]
+    assert [a.linea for a in reservadas] == [2, 2]
+    assert "posición 3" in reservadas[0].mensaje and "posición 6" in reservadas[1].mensaje
 
 
 def test_presupuesto_de_ejemplo_sin_avisos_de_medicion():

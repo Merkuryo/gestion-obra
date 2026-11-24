@@ -50,23 +50,16 @@ TIPOS_INFORMACION = {
 }
 REGISTROS_LEIDOS = ("V", "K", "C", "D", "T", "M")
 
-# Subcampos de ~K, con los nombres de la norma
-DECIMALES_CAMPO_1 = ("DN", "DD", "DS", "DR", "DI", "DP", "DC", "DM")  # por compatibilidad
+# Subcampos de ~K, con los nombres de la norma FIEBDC-3.
+# Campo 1: DN\DD\DS\DR\DI\DP\DC\DM\DIVISA. Se mantiene por compatibilidad con ficheros antiguos.
+DECIMALES_CAMPO_1 = ("DN", "DD", "DS", "DR", "DI", "DP", "DC", "DM")
+# Campo 3, el que rige desde la versión 2004 de la norma:
+#     DRC\DC\\DFS\DRS\\DUO\DI\DES\DN\DD\DS\DSP\DEC\DIVISA
+# Las posiciones 3 y 6 van vacías (reservadas, "" aquí). DN, DD y DS son los decimales de las
+# mediciones (partes iguales, dimensiones y total); los demás se guardan sin usarse aún.
 DECIMALES_CAMPO_3 = (
-    "DRC",
-    "DC",
-    "DFS",
-    "DRS",
-    "DFO",
-    "DRO",
-    "DI",
-    "DES",
-    "DN",
-    "DD",
-    "DS",
-    "DSP",
-    "DEC",
-)
+    "DRC", "DC", "", "DFS", "DRS", "", "DUO", "DI", "DES", "DN", "DD", "DS", "DSP", "DEC",
+)  # fmt: skip
 PORCENTAJES_K = ("CI", "GG", "BI", "BAJA", "IVA")
 DECIMALES_MEDICION_POR_DEFECTO = 2
 
@@ -200,16 +193,14 @@ class Decimales:
     divisa: str = ""
     porcentajes: dict[str, Decimal] = field(default_factory=dict)
 
-    def _valor(self, nombre):
-        for campo in (self.campo_3, self.campo_1):
-            if nombre in campo:
-                return campo[nombre]
-        return DECIMALES_MEDICION_POR_DEFECTO
-
     @property
     def medicion_total(self) -> int:
-        """DS: decimales del total de una medición."""
-        return self._valor("DS")
+        """DS: decimales del total de una medición. Manda el campo 3 (el de la norma actual);
+        si no lo trae, el campo 1; si tampoco, 2."""
+        for campo in (self.campo_3, self.campo_1):
+            if "DS" in campo:
+                return campo["DS"]
+        return DECIMALES_MEDICION_POR_DEFECTO
 
 
 @dataclass
@@ -502,7 +493,15 @@ class _Lector:
     def _decimales_k(self, texto, nombres, linea):
         valores = _subcampos(texto)
         decimales = {}
-        for nombre, valor in zip(nombres, valores, strict=False):
+        for posicion, (nombre, valor) in enumerate(zip(nombres, valores, strict=False), 1):
+            if not nombre:  # posición reservada: la norma la deja vacía
+                if valor.strip():
+                    self.aviso(
+                        f"~K: la posición {posicion} del campo de decimales está "
+                        f"reservada y debería ir vacía; se ignora «{valor.strip()}».",
+                        linea,
+                    )
+                continue
             numero = self._entero(valor, linea, f"~K {nombre}")
             if numero is not None:
                 decimales[nombre] = numero
@@ -659,7 +658,8 @@ class _Lector:
         )
 
     def _total_medicion(self, codigo, lineas, linea):
-        """Suma de las líneas normales, redondeada con los decimales DS de ~K. None si hay
+        """Suma de las líneas normales, redondeada con los decimales DS de ~K antes de compararla
+        con el total del fichero (59,278 → 59,28 con DS = 2). None si hay
         expresiones (no se evalúan) o no hay ninguna línea con cifras."""
         tipos = {LINEA_NORMAL, SUBTOTAL_PARCIAL, SUBTOTAL_ACUMULADO, EXPRESION}
         for desconocido in {ln.tipo for ln in lineas} - tipos:

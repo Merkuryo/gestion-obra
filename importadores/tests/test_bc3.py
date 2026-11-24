@@ -48,7 +48,9 @@ def test_cabecera_v(presupuesto):
 def test_decimales_y_porcentajes_k(presupuesto):
     d = presupuesto.decimales
     assert d.campo_1 == {"DN": 2, "DD": 2, "DS": 2, "DR": 3, "DI": 2, "DP": 2, "DC": 2, "DM": 2}
-    assert d.campo_3["DRC"] == 3 and d.campo_3["DS"] == 2 and len(d.campo_3) == 13
+    # 14 posiciones según la norma, dos de ellas reservadas (vacías): 12 decimales
+    assert d.campo_3["DRC"] == 3 and d.campo_3["DUO"] == 2 and d.campo_3["DS"] == 2
+    assert len(d.campo_3) == 12 and "" not in d.campo_3
     assert d.divisa == "EUR" and d.medicion_total == 2
     assert d.porcentajes == {
         "CI": Decimal("0"),
@@ -233,12 +235,68 @@ def test_el_total_de_la_medicion_se_redondea_con_los_decimales_de_k():
     assert con_uno.decimales.medicion_total == 1
     assert m.total_calculado == Decimal("1.2") and con_uno.avisos == []
 
-    # DS = 3 decimales (campo 3, que manda sobre el 1): 1,234 ≠ 1,2 → aviso
-    con_tres = leer_bc3(bc3(r"~K|2\2\1\3\2\2\2\2\EUR\||3\2\3\3\3\3\2\2\2\2\3\2\2\EUR\|", *MEDICION))
+    # DS = 3 decimales: 1,234 ≠ 1,2 → aviso, y se respeta el total del fichero
+    con_tres = leer_bc3(bc3(r"~K|2\2\3\3\2\2\2\2\EUR\||", *MEDICION))
     m = con_tres.mediciones[0]
     assert con_tres.decimales.medicion_total == 3 and m.total_calculado == Decimal("1.234")
-    assert m.total == Decimal("1.2")  # se respeta el del fichero
+    assert m.total == Decimal("1.2")
     assert any("dice 1.2 y sus líneas suman 1.234" in a for a in mensajes(con_tres, AVISO))
+
+
+def test_la_suma_redondeada_que_cuadra_no_da_aviso():
+    """59,278 redondeado a 2 decimales es 59,28: cuadra con el total del fichero."""
+    lineas = (*MEDICION[:-1], r"~M|C#\P||59.28|\A\1\12.4\\2.7\\B\1\10.8\\2.7\\C\-2\0.82\\2.05\|")
+    sin_k = leer_bc3(bc3(*lineas))
+    assert sin_k.mediciones[0].total_calculado == Decimal("59.28") and sin_k.avisos == []
+    con_k = leer_bc3(bc3(r"~K|2\2\2\3\2\2\2\2\EUR\||", *lineas))
+    assert con_k.avisos == []
+
+
+K_NORMA = r"~K|\2\2\3\3\2\2\2\EUR\|13\6\0\21|3\2\\2\2\\2\2\2\3\3\2\2\2\EUR\|"
+
+
+def test_campo_3_de_k_segun_la_norma():
+    """DRC\\DC\\\\DFS\\DRS\\\\DUO\\DI\\DES\\DN\\DD\\DS\\DSP\\DEC\\DIVISA: las posiciones 3 y 6 van
+    vacías. Así lo escriben los programas de presupuestos (p. ej. la muestra de reforma)."""
+    d = leer_bc3(bc3(K_NORMA)).decimales
+    assert d.campo_3 == {
+        "DRC": 3, "DC": 2, "DFS": 2, "DRS": 2, "DUO": 2, "DI": 2, "DES": 2,
+        "DN": 3, "DD": 3, "DS": 2, "DSP": 2, "DEC": 2,
+    }  # fmt: skip
+    assert d.divisa == "EUR" and d.medicion_total == 2
+
+
+def test_el_ds_del_campo_3_manda_sobre_el_del_campo_1():
+    # Campo 1 con DS = 1 y campo 3 con DS = 3: vale el 3 (la norma actual)
+    k = r"~K|2\2\1\3\2\2\2\2\EUR\||3\2\\3\3\\2\2\2\2\2\3\2\2\EUR\|"
+    r = leer_bc3(bc3(k, *MEDICION))
+    assert r.decimales.campo_1["DS"] == 1 and r.decimales.campo_3["DS"] == 3
+    assert r.decimales.medicion_total == 3
+    assert r.mediciones[0].total_calculado == Decimal("1.234")
+    assert any("suman 1.234" in a for a in mensajes(r, AVISO))
+
+
+def test_sin_campo_3_vale_el_campo_1():
+    r = leer_bc3(bc3(r"~K|2\2\1\3\2\2\2\2\EUR\||", *MEDICION))
+    assert r.decimales.campo_3 == {} and r.decimales.medicion_total == 1
+
+
+def test_posicion_reservada_con_valor_da_aviso():
+    # Orden antiguo sin las dos posiciones vacías: lo que cae en una reservada se avisa
+    r = leer_bc3(bc3(r"~K|||3\2\3\3\3\3\2\2\2\2\2\2\2\EUR\|"))
+    reservadas = [a for a in r.avisos if "reservada" in a.mensaje]
+    assert [a.linea for a in reservadas] == [2, 2]
+    assert "posición 3" in reservadas[0].mensaje and "posición 6" in reservadas[1].mensaje
+
+
+def test_presupuesto_de_ejemplo_sin_avisos_de_medicion():
+    r = leer_bc3(MUESTRAS / "presupuesto_ejemplo_reforma.bc3")
+    assert r.es_valido
+    assert r.recuento()["partidas"] == 8 and r.recuento()["mediciones"] == 8
+    assert not [a for a in mensajes(r, AVISO) if "medición" in a.lower()]
+    alb01 = next(n for n in r.partidas if n.codigo == "ALB01")
+    assert alb01.medicion.total == Decimal("59.28")
+    assert alb01.medicion.total_calculado == Decimal("59.28")  # las líneas suman 59,278
 
 
 def test_sin_k_se_usan_dos_decimales():

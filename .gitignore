@@ -14,7 +14,8 @@ staticfiles/
 # Bases de precios con licencia: NUNCA al repositorio
 datos_privados/
 *.bc3
-!tests/fixtures/**/*.bc3
+# Muestras pequeñas creadas a mano para los tests del lector BC3
+!importadores/tests/muestras/*.bc3
 
 # Solo la aplicación va al repositorio: herramientas y documentación interna, fuera
 CLAUDE.md

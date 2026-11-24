@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     # Apps propias: primero las básicas, después las que dependen de ellas
     "core",
     "empresa",
+    "importadores",
 ]
 
 MIDDLEWARE = [

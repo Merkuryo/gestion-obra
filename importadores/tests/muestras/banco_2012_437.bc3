@@ -1,0 +1,10 @@
+~V|EMPRESA DE EJEMPLO|FIEBDC-3/2012\01102026|Programa de ejemplo|Banco de ejemplo\|437|Banco de prueba|1|||
+~C|BANCO##||Banco de precios de ejemplo|||0|
+~D|BANCO##|FON#\1\1\|
+~C|FON#||Fontaner¡a|||0|
+~D|FON#|FON010\1\1\|
+~C|FON010\FON-010\|ud|Grifo de ba¤o monomando|45.30\48.00\|01102026|0|
+~D|FON010|OF1\1\0.5\GR1\1\1\|
+~T|FON010|Suministro y colocaci¢n de grifo monomando para lavabo de ba¤o, con enlaces de conexi¢n.|
+~C|OF1|h|Oficial fontanero, pe¢n y ayudante|23.10|01102026|1|
+~C|GR1|ud|Grifo monomando cromado, se¤alizado|31.75|01102026|3|

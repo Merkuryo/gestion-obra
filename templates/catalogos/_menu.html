@@ -1,0 +1,8 @@
+{% comment %}Menú del banco de precios. Uso: include con activo="partidas"|"recursos"|"bancos"|"importar".{% endcomment %}{% load permisos %}
+<span class="navbar-text fw-semibold border-start ms-2 ps-3 me-2">Banco de precios</span>
+<ul class="navbar-nav">
+  <li class="nav-item"><a class="nav-link{% if activo == 'partidas' %} active{% endif %}" href="{% url 'catalogos:partidas' %}">Partidas</a></li>
+  <li class="nav-item"><a class="nav-link{% if activo == 'recursos' %} active{% endif %}" href="{% url 'catalogos:recursos' %}">Recursos</a></li>
+  <li class="nav-item"><a class="nav-link{% if activo == 'bancos' %} active{% endif %}" href="{% url 'catalogos:bancos' %}">Bancos externos</a></li>
+  {% if user|puede_editar:"banco" %}<li class="nav-item"><a class="nav-link{% if activo == 'importar' %} active{% endif %}" href="{% url 'catalogos:importar_bc3' %}">Importar BC3</a></li>{% endif %}
+</ul>

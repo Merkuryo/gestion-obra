@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block titulo %}{{ partida.codigo }} · {{ banco }}{% endblock %}
+{% block menu_modulo %}{% include "catalogos/_menu.html" with activo="bancos" %}{% endblock %}
+{% block contenido %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <h1 class="h4 mb-0">{{ partida }}</h1>
+  <span class="badge text-bg-secondary">Solo lectura</span>
+  {% if puede_copiar %}
+    <form method="post" action="{% url 'catalogos:partida_copiar' banco.pk partida.pk %}" class="ms-auto">{% csrf_token %}
+      <button class="btn btn-primary btn-sm"><i class="bi bi-box-arrow-in-down"></i> Copiar al banco propio</button>
+    </form>
+  {% endif %}
+</div>
+<dl class="row">
+  <dt class="col-sm-2">Banco</dt><dd class="col-sm-10">{{ banco }}</dd>
+  {% if partida.capitulo %}<dt class="col-sm-2">Capítulo</dt><dd class="col-sm-10">{{ partida.capitulo }}</dd>{% endif %}
+  <dt class="col-sm-2">Unidad</dt><dd class="col-sm-10">{{ partida.unidad|default:"—" }}</dd>
+  <dt class="col-sm-2">Precio</dt><dd class="col-sm-10">{% if ve_importes %}<span class="cifra">{{ partida.precio|floatformat:"4g"|default:"—" }}</span>{% else %}<span class="text-body-secondary">(oculto)</span>{% endif %}</dd>
+  {% if partida.texto %}<dt class="col-sm-2">Texto</dt><dd class="col-sm-10" style="white-space: pre-line">{{ partida.texto }}</dd>{% endif %}
+</dl>
+<h2 class="h6">Descompuesto por unidad</h2>
+{% include "catalogos/_descompuesto.html" with filas=filas ve_importes=ve_importes %}
+<p class="text-body-secondary small">Al copiarla al banco propio se mantienen los rendimientos. La mano de obra queda marcada para recalcularla con el coste hora de la empresa y los materiales, para enlazarlos con un artículo y su tarifa.</p>
+{% endblock %}

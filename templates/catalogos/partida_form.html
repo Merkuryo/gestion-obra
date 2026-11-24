@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load componentes %}
+{% block titulo %}{{ partida|default:"Nueva partida" }} · Banco de precios{% endblock %}
+{% block menu_modulo %}{% include "catalogos/_menu.html" with activo="partidas" %}{% endblock %}
+{% block contenido %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <h1 class="h4 mb-0">{{ partida|default:"Nueva partida" }}</h1>
+  {% if partida.auxiliar %}<span class="badge text-bg-secondary">Auxiliar</span>{% endif %}
+  {% if partida %}
+    <span class="ms-auto">Precio:
+      {% if ve_importes %}<strong class="cifra">{{ partida.precio|floatformat:"4g"|default:"—" }}</strong> / {{ partida.unidad }}
+      {% else %}<span class="text-body-secondary">(oculto)</span>{% endif %}
+    </span>
+  {% endif %}
+</div>
+{% if partida.origen %}<p class="text-body-secondary small"><i class="bi bi-box-arrow-in-down"></i> Copiada de {{ partida.origen }}</p>{% endif %}
+{% include "componentes/_formulario.html" with form=form url_descartar=url_lista extra="catalogos/_lineas.html" %}
+{% if partida %}
+  <h2 class="h6 mt-4">Descompuesto por unidad</h2>
+  {% include "catalogos/_descompuesto.html" with filas=filas ve_importes=ve_importes %}
+{% endif %}
+{% historial partida %}
+{% endblock %}

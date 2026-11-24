@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load componentes %}
+{% block titulo %}{{ recurso|default:"Nuevo recurso" }} · Banco de precios{% endblock %}
+{% block menu_modulo %}{% include "catalogos/_menu.html" with activo="recursos" %}{% endblock %}
+{% block contenido %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <h1 class="h4 mb-0">{{ recurso|default:"Nuevo recurso" }}</h1>
+  {% if recurso.pendiente %}<span class="badge text-bg-warning">{{ recurso.get_pendiente_display }}</span>{% endif %}
+</div>
+{% if recurso.origen %}<p class="text-body-secondary small"><i class="bi bi-box-arrow-in-down"></i> Copiado de {{ recurso.origen }}</p>{% endif %}
+{% include "componentes/_formulario.html" with form=form url_descartar=url_lista %}
+{% historial recurso %}
+{% endblock %}

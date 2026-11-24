@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load permisos %}
+{% block titulo %}Recursos · Banco de precios{% endblock %}
+{% block menu_modulo %}{% include "catalogos/_menu.html" with activo="recursos" %}{% endblock %}
+{% block contenido %}
+<div class="d-flex align-items-center mb-3">
+  <h1 class="h4 mb-0">Recursos del banco propio</h1>
+  {% if user|puede_editar:"banco" %}
+    <a class="btn btn-primary btn-sm ms-3" href="{% url 'catalogos:recurso_nuevo' %}"><i class="bi bi-plus-lg"></i> Nuevo recurso</a>
+  {% endif %}
+</div>
+{% include "componentes/_lista.html" with lista=lista %}
+{% endblock %}

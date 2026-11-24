@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Resumen del BC3 · Banco de precios{% endblock %}
+{% block menu_modulo %}{% include "catalogos/_menu.html" with activo="importar" %}{% endblock %}
+{% block contenido %}
+<h1 class="h4 mb-3">Resumen antes de importar</h1>
+<div class="card mb-3"><div class="card-body">
+  <p class="mb-1"><strong>{{ vista.nombre }}</strong> <span class="text-body-secondary">({{ vista.fichero }})</span></p>
+  <p class="text-body-secondary small mb-2">{{ vista.resultado.version|default:"Versión sin indicar" }}{% if vista.resultado.programa %} · {{ vista.resultado.programa }}{% endif %} · leído como {{ vista.resultado.codificacion }}</p>
+  {% if vista.existente %}
+    <div class="alert alert-info py-2 mb-2"><i class="bi bi-arrow-repeat"></i> Ya está importado como «{{ vista.existente }}»{% if vista.existente.importado_en %} el {{ vista.existente.importado_en|date:"d/m/Y" }}{% endif %}: <strong>se actualizará</strong> por código, sin duplicar.</div>
+  {% else %}
+    <div class="alert alert-success py-2 mb-2"><i class="bi bi-plus-circle"></i> Se creará un <strong>banco externo nuevo</strong>.</div>
+  {% endif %}
+  <ul class="list-inline mb-0">
+    <li class="list-inline-item"><strong>{{ vista.recuento.capitulos }}</strong> capítulos</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.partidas }}</strong> partidas</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.auxiliares }}</strong> auxiliares</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.recursos }}</strong> recursos</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.lineas }}</strong> líneas de descompuesto</li>
+  </ul>
+</div></div>
+{% if vista.contenido.capitulos %}
+  <h2 class="h6">Capítulos</h2>
+  <ul class="small">{% for codigo, resumen, padre in vista.contenido.capitulos|slice:":30" %}<li>{% if padre %}<span class="text-body-secondary">{{ padre }} ›</span> {% endif %}{{ codigo }} {{ resumen }}</li>{% endfor %}
+  {% if vista.contenido.capitulos|length > 30 %}<li class="text-body-secondary">… y {{ vista.contenido.capitulos|length|add:"-30" }} más</li>{% endif %}</ul>
+{% endif %}
+{% if vista.errores %}
+  <div class="alert alert-danger"><strong>Errores ({{ vista.errores|length }}):</strong> esto no se ha podido leer y no se importará.
+    <ul class="mb-0 small">{% for e in vista.errores|slice:":50" %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+{% if vista.avisos %}
+  <div class="alert alert-warning"><strong>Avisos ({{ vista.avisos|length }}):</strong>
+    <ul class="mb-0 small">{% for a in vista.avisos|slice:":50" %}<li>{{ a }}</li>{% endfor %}</ul></div>
+{% endif %}
+<form method="post" class="d-flex gap-2">
+  {% csrf_token %}
+  {% if vista.se_puede_importar %}
+    <button name="confirmar" class="btn btn-primary"><i class="bi bi-check-lg"></i> {% if vista.existente %}Actualizar el banco{% else %}Importar{% endif %}</button>
+  {% else %}
+    <div class="alert alert-danger mb-0">No hay partidas ni recursos que importar.</div>
+  {% endif %}
+  <button name="cancelar" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Cancelar</button>
+</form>
+{% endblock %}

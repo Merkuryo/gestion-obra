@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% load permisos %}
+{% block titulo %}Bancos externos · Banco de precios{% endblock %}
+{% block menu_modulo %}{% include "catalogos/_menu.html" with activo="bancos" %}{% endblock %}
+{% block contenido %}
+<div class="d-flex align-items-center mb-3">
+  <h1 class="h4 mb-0">Bancos externos</h1>
+  {% if user|puede_editar:"banco" %}
+    <a class="btn btn-primary btn-sm ms-3" href="{% url 'catalogos:importar_bc3' %}"><i class="bi bi-upload"></i> Importar BC3</a>
+  {% endif %}
+</div>
+<p class="text-body-secondary small">Cada BC3 importado es un banco de solo lectura. Para usar una partida en tu banco, ábrela y cópiala.</p>
+{% include "componentes/_lista.html" with lista=lista %}
+{% endblock %}

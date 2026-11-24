@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}{{ banco }} · Banco de precios{% endblock %}
+{% block menu_modulo %}{% include "catalogos/_menu.html" with activo="bancos" %}{% endblock %}
+{% block contenido %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <h1 class="h4 mb-0">{{ banco }}</h1>
+  <span class="badge text-bg-secondary">Solo lectura</span>
+</div>
+<p class="text-body-secondary small mb-3">
+  {{ banco.fichero }}{% if banco.version_formato %} · {{ banco.version_formato }}{% endif %}{% if banco.programa %} · {{ banco.programa }}{% endif %}
+  {% if banco.importado_en %} · importado el {{ banco.importado_en|date:"d/m/Y H:i" }}{% endif %}
+  · {{ recuento.capitulos }} capítulos · {{ recuento.auxiliares }} auxiliares · {{ recuento.recursos }} recursos
+</p>
+{% include "componentes/_lista.html" with lista=lista %}
+{% endblock %}

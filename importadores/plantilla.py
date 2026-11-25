@@ -43,7 +43,7 @@ PARAMETROS_INDICE = {
     "F8": ("importe_km", "Importe por km (€/km)"),
     "F9": ("operarios_desplazados", "Operarios desplazados"),
 }
-UNIDADES = {"M2": "m²", "M²": "m²", "M3": "m³", "M³": "m³", "ML": "m", "M": "m", "UD": "ud",
+UNIDADES = {"M2": "m²", "M²": "m²", "M3": "m³", "M³": "m³", "ML": "ml", "M": "m", "UD": "ud",
             "U": "ud", "KG": "kg", "H": "h", "PA": "pa"}  # fmt: skip
 UNIDAD_POR_DEFECTO = "m²"
 CIEN = Decimal("100")

@@ -390,6 +390,8 @@ def _elecciones_plantilla(request, ve_importes):
     ajustes = {
         i: {
             "importar": f"importar_{i}" in post,
+            # Solo las hojas que ya existen en el banco llevan la elección
+            **({"accion": post[f"accion_{i}"]} if f"accion_{i}" in post else {}),
             "codigo": post.get(f"codigo_{i}", ""),
             "unidad": post.get(f"unidad_{i}", ""),
         }
@@ -415,6 +417,7 @@ class ImportarPlantilla(ConPermiso, View):
     def _pintar_vista(self, request, vista):
         contexto = {
             "vista": vista,
+            "acciones": servicios.ACCIONES_EXISTENTE,
             "ve_importes": _ve_importes(request.user),
             "seccion": seccion_elegida(request.user),
             "migas": self.migas,

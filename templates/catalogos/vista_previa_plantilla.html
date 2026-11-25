@@ -13,6 +13,7 @@
     <li class="list-inline-item"><strong>{{ vista.recuento.actualizadas }}</strong> se actualizan</li>
     <li class="list-inline-item"><strong>{{ vista.recuento.sin_cambios }}</strong> sin cambios</li>
     <li class="list-inline-item"><strong>{{ vista.recuento.omitidas }}</strong> no se importan</li>
+    {% if vista.recuento.pendientes %}<li class="list-inline-item text-danger"><strong>{{ vista.recuento.pendientes }}</strong> por elegir</li>{% endif %}
   </ul>
   <p class="small text-body-secondary mb-2">Las partidas nuevas van a la sección {% if seccion %}<strong>{{ seccion }}</strong>{% else %}<strong>ninguna</strong> (estás en «Todas las secciones»: asígnasela después en cada ficha){% endif %}.</p>
   {% if ve_importes %}
@@ -40,18 +41,25 @@
 <table class="table table-sm align-middle bg-body">
   <thead class="table-light"><tr>
     <th>Importar</th><th>Hoja</th><th>Código</th><th>Unidad</th><th>Estado</th>
-    <th class="text-end">Medición</th><th class="text-end">MO / ud</th><th class="text-end">Rendimiento (ud/día)</th><th class="text-end">Horas / ud</th>
+    <th class="text-end">Medición</th><th class="text-end">% beneficio</th><th class="text-end">MO / ud</th><th class="text-end">Rendimiento (ud/día)</th><th class="text-end">Horas / ud</th>
     <th class="text-end">Materiales</th>{% if ve_importes %}<th class="text-end">Coste directo plantilla</th><th class="text-end">Precio en el banco</th>{% endif %}
   </tr></thead>
   <tbody>
   {% for p in vista.partidas %}
-    <tr{% if p.errores and p.importar %} class="table-danger"{% endif %}>
-      <td><input class="form-check-input" type="checkbox" name="importar_{{ p.indice }}" aria-label="Importar {{ p.hoja.nombre }}" {% if p.importar %}checked{% endif %}></td>
-      <td>{{ p.hoja.nombre }}{% if not p.hoja.activa %} <span class="badge text-bg-secondary" title="Fuera de Hoja1-Hoja2 en la plantilla">biblioteca</span>{% endif %}</td>
+    <tr{% if p.errores and p.importar or p.falta_elegir %} class="table-danger"{% endif %}>
+      <td>{% if p.existente %}
+        <select class="form-select form-select-sm" name="accion_{{ p.indice }}" aria-label="Qué hacer con {{ p.hoja.nombre }}, que ya existe en el banco" style="min-width: 11rem">
+          {% if p.falta_elegir %}<option value="" selected>Elige…</option>{% endif %}
+          {% for valor, texto in acciones %}<option value="{{ valor }}"{% if valor == p.accion %} selected{% endif %}>{{ texto }}</option>{% endfor %}
+        </select>
+      {% else %}<input class="form-check-input" type="checkbox" name="importar_{{ p.indice }}" aria-label="Importar {{ p.hoja.nombre }}" {% if p.importar %}checked{% endif %}>{% endif %}</td>
+      <td>{{ p.hoja.nombre }}{% if not p.hoja.activa %} <span class="badge text-bg-secondary" title="Fuera de Hoja1-Hoja2 en la plantilla">biblioteca</span>{% endif %}
+        {% if p.existente %}<div class="small text-body-secondary">Ya existe en el banco: <a href="{% url 'catalogos:partida' p.existente.pk %}" target="_blank" rel="noopener">{{ p.existente.codigo }}</a>{% if p.otras %} (y {{ p.otras }} más con el mismo nombre){% endif %}{% if not p.cambia %} · sin cambios{% endif %}</div>{% endif %}</td>
       <td><input class="form-control form-control-sm" name="codigo_{{ p.indice }}" value="{{ p.codigo }}" maxlength="40" aria-label="Código de {{ p.hoja.nombre }}" style="min-width: 7rem"></td>
       <td><input class="form-control form-control-sm" name="unidad_{{ p.indice }}" value="{{ p.unidad }}" maxlength="20" aria-label="Unidad de {{ p.hoja.nombre }}" style="min-width: 4rem" title="Propuesta desde «{{ p.hoja.etiqueta_unidad|default:'—' }}»"></td>
-      <td>{% if p.estado == "nueva" %}<span class="badge text-bg-success">nueva</span>{% elif p.estado == "se actualiza" %}<span class="badge text-bg-primary">se actualiza {{ p.existente.codigo }}</span>{% elif p.estado == "sin cambios" %}<span class="badge text-bg-secondary">sin cambios</span>{% else %}<span class="badge text-bg-light">no se importa</span>{% endif %}</td>
+      <td>{% if p.estado == "nueva" %}<span class="badge text-bg-success">nueva</span>{% elif p.estado == "se actualiza" %}<span class="badge text-bg-primary">se actualiza {{ p.existente.codigo }}</span>{% elif p.estado == "sin cambios" %}<span class="badge text-bg-secondary">sin cambios</span>{% elif p.estado == "falta elegir" %}<span class="badge text-bg-danger">falta elegir</span>{% else %}<span class="badge text-bg-light">no se importa</span>{% endif %}</td>
       <td class="cifra">{{ p.hoja.medicion|floatformat:"-3"|default:"—" }}</td>
+      <td class="cifra">{% if ve_importes %}{{ p.hoja.beneficio_pct|floatformat:"-2"|default:"—" }}{% else %}<span class="text-body-secondary">(oculto)</span>{% endif %}</td>
       <td class="cifra">{% if ve_importes %}{{ p.hoja.precio_mo|floatformat:"2"|default:"—" }}{% else %}<span class="text-body-secondary">(oculto)</span>{% endif %}</td>
       <td class="cifra">{{ p.rendimiento_mo|floatformat:"4"|default:"—" }}</td>
       <td class="cifra">{{ p.horas_mo|floatformat:"4"|default:"—" }}</td>
@@ -65,7 +73,7 @@
   </tbody>
 </table>
 </div>
-<p class="small text-body-secondary">Rendimiento = coste día / precio de mano de obra por unidad; horas por unidad = jornada / rendimiento. El precio en el banco no lleva gastos de empresa, beneficio ni desplazamiento. La unidad se propone desde la etiqueta de la medición de cada hoja: revísala.</p>
+<p class="small text-body-secondary">Rendimiento = coste día / precio de mano de obra por unidad; horas por unidad = jornada / rendimiento. El precio en el banco no lleva gastos de empresa, beneficio ni desplazamiento. La unidad se propone desde la etiqueta de la medición de cada hoja: revísala. La medición y el % de beneficio son de la obra de la plantilla: se muestran, pero no se guardan en el banco. Una hoja que ya existe en el banco no se sobrescribe sin elegirlo.</p>
 
 {% if vista.uniones %}
   <h2 class="h6 mt-3">Materiales con nombres casi iguales</h2>
@@ -97,8 +105,11 @@
 {% endif %}
 
 <div class="d-flex gap-2">
-  {% if vista.a_importar and not vista.resultado.errores %}
-    <button name="confirmar" class="btn btn-primary"><i class="bi bi-check-lg"></i> Importar al banco propio</button>
+  {% if not vista.a_importar and not vista.recuento.pendientes and not vista.resultado.errores %}
+    <p class="text-body-secondary mb-0 align-self-center">No hay nada que importar: todas las hojas se omiten.</p>
+  {% endif %}
+  {% if vista.partidas and not vista.resultado.errores %}
+    {% if vista.a_importar or vista.recuento.pendientes %}<button name="confirmar" class="btn btn-primary"><i class="bi bi-check-lg"></i> Importar al banco propio</button>{% endif %}
     <button name="recalcular" class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Recalcular</button>
   {% endif %}
   <button name="cancelar" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Cancelar</button>

@@ -54,7 +54,7 @@ def test_celdas_de_cada_partida(plantilla):
 
 @pytest.mark.parametrize(
     "etiqueta, unidad",
-    [("M2 Obra", "m²"), ("ML Obra", "m"), ("M3 Obra", "m³"), ("UD Obra", "ud"), ("", "m²"),
+    [("M2 Obra", "m²"), ("ML Obra", "ml"), ("M3 Obra", "m³"), ("UD Obra", "ud"), ("", "m²"),
      ("Superficie", "m²")],
 )  # fmt: skip
 def test_unidad_propuesta_desde_la_etiqueta(etiqueta, unidad):

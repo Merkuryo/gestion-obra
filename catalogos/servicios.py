@@ -655,10 +655,16 @@ def filas_descompuesto(partida: Partida, ve_importes: bool):
 #   El precio por unidad original queda en la partida como referencia.
 # No se importan los gastos de empresa (14 %), el beneficio, los márgenes, el desplazamiento
 # ni los resúmenes: son del presupuesto o son copias (lecciones de la plantilla).
-# Es idempotente: la misma hoja (por su nombre) actualiza la partida que ya se importó.
+# Una hoja que ya está en el banco (importada antes de esa hoja o una partida con el mismo
+# nombre) nunca se sobrescribe sin preguntar: el usuario elige actualizarla, crear otra con
+# código nuevo u omitirla. Sin cambios se omite; con cambios hay que elegir antes de importar.
 
 CODIGO_MO, CODIGO_FIJACIONES, CODIGO_TRANSPORTES = "MO-OPERARIO", "FIJACIONES", "TRANSPORTES"
 UMBRAL_PARECIDOS = 0.9  # «Ejecto pizarra» / «Efecto pizarra» ≈ 0,93
+# Qué hacer con una hoja que ya existe en el banco ("" = sin elegir todavía)
+ACTUALIZAR, CREAR, OMITIR = "actualizar", "crear", "omitir"
+ACCIONES_EXISTENTE = [(ACTUALIZAR, "Actualizarla"), (CREAR, "Crear otra (código nuevo)"),
+                      (OMITIR, "Omitir")]  # fmt: skip
 
 
 def origen_plantilla(hoja: str) -> str:
@@ -693,15 +699,24 @@ class LineaPrevista:
 class PartidaPrevista:
     indice: int
     hoja: object  # importadores.plantilla.HojaPartida
-    importar: bool
+    accion: str  # crear | actualizar | omitir | "" (ya existe y falta elegir)
     codigo: str
     unidad: str
-    existente: Partida | None
+    existente: Partida | None  # la del banco con esa hoja o ese nombre
+    otras: int = 0  # más partidas del banco con el mismo nombre
     lineas: list = field(default_factory=list)
     rendimiento_mo: Decimal | None = None
     horas_mo: Decimal | None = None
     errores: list = field(default_factory=list)
     cambia: bool = True
+
+    @property
+    def importar(self):
+        return self.accion in (CREAR, ACTUALIZAR)
+
+    @property
+    def falta_elegir(self):
+        return self.existente is not None and self.accion == ""
 
     @property
     def precio(self):
@@ -711,9 +726,11 @@ class PartidaPrevista:
 
     @property
     def estado(self):
+        if self.falta_elegir:
+            return "falta elegir"
         if not self.importar:
             return "no se importa"
-        if self.existente is None:
+        if self.accion == CREAR:
             return "nueva"
         return "se actualiza" if self.cambia else "sin cambios"
 
@@ -760,7 +777,11 @@ class VistaPreviaPlantilla:
     def errores(self):
         return list(self.resultado.errores) + [
             f"{p.hoja.nombre}: {e}" for p in self.partidas if p.importar for e in p.errores
-        ]
+        ] + [
+            f"{p.hoja.nombre}: ya existe en el banco ({p.existente.codigo}) y ha cambiado; elige "
+            "si se actualiza, se crea otra con código nuevo o se omite."
+            for p in self.partidas if p.falta_elegir
+        ]  # fmt: skip
 
     @property
     def a_importar(self):
@@ -778,6 +799,7 @@ class VistaPreviaPlantilla:
             "actualizadas": estados.count("se actualiza"),
             "sin_cambios": estados.count("sin cambios"),
             "omitidas": estados.count("no se importa"),
+            "pendientes": estados.count("falta elegir"),
         }
 
 
@@ -847,12 +869,28 @@ def _lineas_iguales(partida, lineas):
     return actuales == nuevas
 
 
+def _partida_cambia(prevista, mano_obra, coste_hora):
+    """¿Actualizar la partida del banco con la hoja cambiaría algo?"""
+    e, p = prevista.existente, prevista
+    mo_ref = calculos.redondear_d4(p.hoja.precio_mo)[0]
+    return bool(
+        (e.codigo, e.unidad, e.resumen, e.precio_mo_referencia)
+        != (p.codigo, p.unidad, p.hoja.nombre[: LARGO["resumen"]], mo_ref)
+        or any(ln.recurso is None for ln in p.lineas)
+        or not _lineas_iguales(e, p.lineas)
+        or (mano_obra and p.horas_mo and mano_obra.precio != coste_hora)
+    )
+
+
 def preparar_plantilla(datos: bytes, fichero: str, *, coste_dia=None, ajustes=None,
                        uniones=()) -> VistaPreviaPlantilla:  # fmt: skip
     """Lee la plantilla y dice qué se importaría al banco propio, sin guardar nada.
 
     `coste_dia`: el que fija el usuario mientras no haya coste hora de la empresa.
-    `ajustes`: {índice de partida: {"importar": bool, "codigo": str, "unidad": str}}.
+    `ajustes`: {índice de partida: {"importar": bool, "accion": str, "codigo": str,
+    "unidad": str}}. `importar` vale para las hojas nuevas; `accion` (actualizar, crear u
+    omitir), para las que ya existen en el banco: sin ella, se omiten si no cambian y, si
+    cambian, queda sin elegir y no se puede importar.
     `uniones`: parejas de materiales que el usuario confirma como el mismo, «clave>destino»
     (los valores de `UnionPropuesta.opciones`).
     """
@@ -917,23 +955,37 @@ def preparar_plantilla(datos: bytes, fichero: str, *, coste_dia=None, ajustes=No
     }  # fmt: skip
 
     # Partidas
-    existentes = {
-        p.origen: p
-        for p in Partida.objects.filter(banco=propio, origen__startswith=ORIGEN_PLANTILLA)
-    }
+    # Ya en el banco: primero la importada de esa hoja; después, las del mismo nombre
+    por_origen, por_nombre = {}, {}
+    for partida in Partida.objects.filter(banco=propio).order_by("pk"):
+        if partida.origen.startswith(ORIGEN_PLANTILLA):
+            por_origen.setdefault(partida.origen, []).append(partida)
+        por_nombre.setdefault(normalizar(partida.resumen), []).append(partida)
     codigos_nuevos = _siguientes_codigos(Partida, propio, "P-", ())
+    validas = {ACTUALIZAR, CREAR, OMITIR, ""}
     partidas = []
     for indice, hoja in enumerate(resultado.partidas):
         ajuste = ajustes.get(indice, {})
-        existente = existentes.get(origen_plantilla(hoja.nombre))
+        candidatas = list(por_origen.get(origen_plantilla(hoja.nombre), []))
+        mismo_nombre = por_nombre.get(normalizar(hoja.nombre), [])
+        candidatas += [c for c in mismo_nombre if c not in candidatas]
+        existente = candidatas[0] if candidatas else None
+        if existente is None:
+            omitir = ajuste.get("accion") == OMITIR or not ajuste.get("importar", True)
+            accion = OMITIR if omitir else CREAR
+        else:  # None: se decide abajo según haya cambios
+            accion = ajuste["accion"] if ajuste.get("accion") in validas else None
         codigo = (ajuste.get("codigo") or "").strip()
+        if existente and accion == CREAR and codigo in ("", existente.codigo):
+            codigo = next(codigos_nuevos)
         if not codigo:
             codigo = existente.codigo if existente else next(codigos_nuevos)
         unidad = (ajuste.get("unidad") or "").strip()
         if not unidad:
-            unidad = existente.unidad if existente and existente.unidad else hoja.unidad
+            de_existente = existente and existente.unidad and accion != CREAR
+            unidad = existente.unidad if de_existente else hoja.unidad
         prevista = PartidaPrevista(
-            indice, hoja, ajuste.get("importar", True), codigo, unidad, existente
+            indice, hoja, accion or "", codigo, unidad, existente, len(candidatas[1:])
         )
         for m in hoja.materiales:
             final = _destino(normalizar(m.nombre), mapa)
@@ -966,6 +1018,10 @@ def preparar_plantilla(datos: bytes, fichero: str, *, coste_dia=None, ajustes=No
                               prevista.horas_mo, Decimal("0"), coste_hora,
                               recursos_fijos.get(CODIGO_MO))
             )  # fmt: skip
+        if existente is not None:
+            prevista.cambia = _partida_cambia(prevista, recursos_fijos.get(CODIGO_MO), coste_hora)
+            if accion is None:
+                prevista.accion = "" if prevista.cambia else OMITIR
         partidas.append(prevista)
 
     # Comprobaciones de lo que se va a importar
@@ -980,21 +1036,10 @@ def preparar_plantilla(datos: bytes, fichero: str, *, coste_dia=None, ajustes=No
             p.errores.append(f"el código {p.codigo} se repite en «{usados[p.codigo]}».")
         usados.setdefault(p.codigo, p.hoja.nombre)
         dueno = otros.get(p.codigo)
-        if dueno is not None and (p.existente is None or dueno != p.existente.pk):
+        if dueno is not None and not (p.accion == ACTUALIZAR and dueno == p.existente.pk):
             p.errores.append(f"el código {p.codigo} ya es de otra partida del banco propio.")
         if not p.unidad or len(p.unidad) > LARGO["unidad"]:
             p.errores.append("falta la unidad (o pasa de 20 caracteres).")
-        if p.existente is not None:
-            e = p.existente
-            mo_ref = calculos.redondear_d4(p.hoja.precio_mo)[0]
-            p.cambia = (
-                (e.codigo, e.unidad, e.resumen, e.precio_mo_referencia)
-                != (p.codigo, p.unidad, p.hoja.nombre[:255], mo_ref)
-                or any(ln.recurso is None for ln in p.lineas)
-                or not _lineas_iguales(e, p.lineas)
-                or (recursos_fijos.get(CODIGO_MO) and p.horas_mo
-                    and recursos_fijos[CODIGO_MO].precio != coste_hora)
-            )  # fmt: skip
 
     return VistaPreviaPlantilla(
         resultado, fichero, coste_dia, provisional, jornada, partidas, lista_uniones, avisos
@@ -1032,7 +1077,7 @@ def importar_plantilla(datos: bytes, fichero: str, actor, *, coste_dia=None, aju
     vista = preparar_plantilla(datos, fichero, coste_dia=coste_dia, ajustes=ajustes,
                                uniones=uniones)  # fmt: skip
     if not vista.se_puede_importar:
-        raise ValidationError(vista.errores or ["No hay partidas que importar."])
+        raise ValidationError(vista.errores or ["No hay partidas que importar: todas se omiten."])
     propio = banco_propio()
     motivo = f"Importado de la plantilla {fichero}"[:100]
     resumen = ResumenPlantilla()
@@ -1084,7 +1129,7 @@ def importar_plantilla(datos: bytes, fichero: str, actor, *, coste_dia=None, aju
             for n, ln in enumerate(p.lineas)
         ]  # fmt: skip
         mo_ref = calculos.redondear_d4(p.hoja.precio_mo)[0]
-        partida = p.existente
+        partida = p.existente if p.accion == ACTUALIZAR else None
         if partida is None:
             partida = Partida(
                 banco=propio, seccion=seccion, codigo=p.codigo, unidad=p.unidad,

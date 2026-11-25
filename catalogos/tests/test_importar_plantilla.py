@@ -124,8 +124,19 @@ def test_misma_hoja_otra_vez_no_duplica(plantilla, empresa, gerente):
     antes = (Partida.objects.count(), Recurso.objects.count(), LineaDescompuesto.objects.count(),
              Partida.history.count(), LineaDescompuesto.history.count())  # fmt: skip
     vista = servicios.preparar_plantilla(plantilla, FICHERO)
-    assert [p.estado for p in vista.partidas] == ["sin cambios"] * 4
-    resumen = _importar(plantilla, gerente)
+    # Ya existen y no cambian: por defecto se omiten
+    assert [(p.existente.codigo, p.cambia, p.estado) for p in vista.partidas] == [
+        ("P-001", False, "no se importa"), ("P-002", False, "no se importa"),
+        ("P-003", False, "no se importa"), ("P-004", False, "no se importa"),
+    ]  # fmt: skip
+    assert not vista.a_importar and not vista.errores
+    with pytest.raises(ValidationError, match="todas se omiten"):
+        _importar(plantilla, gerente)
+    # Aunque se elija actualizarlas, sin cambios no se toca nada (ni el historial)
+    actualizar = {i: {"accion": "actualizar"} for i in range(4)}
+    assert [p.estado for p in servicios.preparar_plantilla(
+        plantilla, FICHERO, ajustes=actualizar).partidas] == ["sin cambios"] * 4  # fmt: skip
+    resumen = _importar(plantilla, gerente, ajustes=actualizar)
     assert len(resumen.sin_cambios) == 4 and not resumen.creadas and not resumen.actualizadas
     despues = (Partida.objects.count(), Recurso.objects.count(),
                LineaDescompuesto.objects.count(), Partida.history.count(),
@@ -139,15 +150,75 @@ def test_hoja_cambiada_actualiza_su_partida(plantilla, empresa, gerente):
     cambiadas = [("PINTURA INTERIOR", 100, 4.2, [("Pintura plástica blanca", 3.0, 0, 0.3)], 0, 0,
                   500), *PARTIDAS[1:]]  # fmt: skip
     nueva = crear_plantilla(partidas=cambiadas)
+    # Con cambios no se sobrescribe sin preguntar: falta elegir y no deja importar
     vista = servicios.preparar_plantilla(nueva, FICHERO)
-    assert vista.partidas[0].estado == "se actualiza"
-    _importar(nueva, gerente)
+    assert [p.estado for p in vista.partidas] == ["falta elegir"] + ["no se importa"] * 3
+    assert not vista.se_puede_importar
+    assert vista.errores == [
+        "PINTURA INTERIOR: ya existe en el banco (P-001) y ha cambiado; elige "
+        "si se actualiza, se crea otra con código nuevo o se omite."
+    ]
+    with pytest.raises(ValidationError):
+        _importar(nueva, gerente)
+    actualizar = {0: {"accion": "actualizar"}}
+    vista = servicios.preparar_plantilla(nueva, FICHERO, ajustes=actualizar)
+    assert vista.partidas[0].estado == "se actualiza" and vista.se_puede_importar
+    _importar(nueva, gerente, ajustes=actualizar)
     pintura.refresh_from_db()
     assert Partida.objects.filter(resumen="PINTURA INTERIOR").count() == 1
     assert _lineas(pintura) == [("M-001", D("0.3000"), D("10.00")),
                                 ("MO-OPERARIO", D("0.1778"), D("0.00"))]  # fmt: skip
     assert pintura.precio_mo_referencia == D("4.2000")
     assert pintura.history.first().history_change_reason.startswith("Importado de la plantilla")
+
+
+def _pintura_cambiada():
+    cambiadas = [("PINTURA INTERIOR", 100, 4.2, [("Pintura plástica blanca", 3.0, 0, 0.3)], 0, 0,
+                  500), *PARTIDAS[1:]]  # fmt: skip
+    return crear_plantilla(partidas=cambiadas)
+
+
+def test_hoja_cambiada_crear_otra_con_codigo_nuevo(plantilla, empresa, gerente):
+    _importar(plantilla, gerente)
+    nueva = _pintura_cambiada()
+    # El código que traía (el de la existente) se cambia por uno nuevo
+    ajustes = {0: {"accion": "crear", "codigo": "P-001"}}
+    vista = servicios.preparar_plantilla(nueva, FICHERO, ajustes=ajustes)
+    assert (vista.partidas[0].codigo, vista.partidas[0].estado) == ("P-005", "nueva")
+    resumen = _importar(nueva, gerente, ajustes=ajustes)
+    assert [p.codigo for p in resumen.creadas] == ["P-005"] and not resumen.actualizadas
+    assert _propia("P-001").precio_mo_referencia == D("2.1000")  # la de antes, intacta
+    assert _propia("P-005").precio_mo_referencia == D("4.2000")
+    # Las dos tienen el mismo nombre: la vista previa lo dice
+    vista = servicios.preparar_plantilla(nueva, FICHERO)
+    assert (vista.partidas[0].existente.codigo, vista.partidas[0].otras) == ("P-001", 1)
+
+
+def test_hoja_cambiada_omitida(plantilla, empresa, gerente):
+    _importar(plantilla, gerente)
+    resumen = _importar(
+        _pintura_cambiada(), gerente, ajustes={0: {"accion": "omitir"}, 1: {"accion": "actualizar"}}
+    )
+    assert not resumen.creadas and not resumen.actualizadas and len(resumen.sin_cambios) == 1
+    assert _propia("P-001").precio_mo_referencia == D("2.1000")
+
+
+def test_partida_del_banco_con_el_mismo_nombre_ya_existe(plantilla, empresa, gerente):
+    propia = servicios.guardar_partida(
+        Partida(banco=servicios.banco_propio(), codigo="PI", unidad="m2",
+                resumen="Pintura  interior"), [], [], gerente,
+    )  # fmt: skip
+    vista = servicios.preparar_plantilla(plantilla, FICHERO)
+    primera = vista.partidas[0]
+    assert (primera.existente, primera.estado, primera.codigo) == (propia, "falta elegir", "PI")
+    assert [p.estado for p in vista.partidas[1:]] == ["nueva"] * 3
+    _importar(plantilla, gerente, ajustes={0: {"accion": "actualizar", "unidad": "m²"}})
+    propia.refresh_from_db()
+    assert (propia.unidad, propia.precio_mo_referencia, propia.lineas.count()) == (
+        "m²",
+        D("2.1000"),
+        2,
+    )
 
 
 def test_nombres_iguales_sin_tildes_ni_mayusculas_son_el_mismo_material(plantilla, empresa,

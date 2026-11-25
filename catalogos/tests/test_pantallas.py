@@ -378,6 +378,41 @@ def test_plantilla_con_vista_previa_recalculo_y_confirmacion(cliente_con_rol, em
     assert "Esta partida no tiene sección" in html
 
 
+def test_plantilla_hoja_que_ya_existe_hay_que_elegir(cliente_con_rol, empresa, media_temporal):
+    from importadores.tests.plantilla_muestra import PARTIDAS, crear_plantilla
+
+    cliente = cliente_con_rol("Gerencia")
+    _subir_plantilla(cliente, crear_plantilla())
+    cliente.post("/banco/importar/plantilla/", _elecciones(confirmar=""))
+    cambiadas = [("PINTURA INTERIOR", 100, 4.2, [("Pintura plástica blanca", 3.0, 0, 0.3)], 0, 0,
+                  500), *PARTIDAS[1:]]  # fmt: skip
+    html = _subir_plantilla(cliente, crear_plantilla(partidas=cambiadas)).content.decode()
+    assert "Ya existe en el banco" in html and "falta elegir" in html and "Elige…" in html
+    assert 'name="accion_0"' in html and 'name="importar_0"' not in html
+    assert '<option value="omitir" selected>' in html  # las que no cambian
+    assert "% beneficio" in html and "Crear otra (código nuevo)" in html
+
+    # Sin elegir no importa: vuelve a la vista previa con el error
+    datos = {
+        "num_partidas": "4",
+        "coste_dia": "189,00",
+        "accion_0": "",
+        "accion_1": "omitir",
+        "accion_2": "omitir",
+        "accion_3": "omitir",
+        "confirmar": "",
+    }
+    respuesta = cliente.post("/banco/importar/plantilla/", datos)
+    assert respuesta.status_code == 200 and "ha cambiado; elige" in respuesta.content.decode()
+    assert Partida.objects.get(codigo="P-001").precio_mo_referencia == D("2.1000")
+
+    datos["accion_0"] = "actualizar"
+    respuesta = cliente.post("/banco/importar/plantilla/", datos)
+    assert respuesta.status_code == 302
+    assert Partida.objects.get(codigo="P-001").precio_mo_referencia == D("4.2000")
+    assert Partida.objects.filter(banco=servicios.banco_propio()).count() == 4
+
+
 def test_plantilla_con_codigo_repetido_vuelve_a_la_vista_previa(cliente_con_rol, empresa,
                                                                 media_temporal):  # fmt: skip
     from importadores.tests.plantilla_muestra import crear_plantilla

@@ -316,6 +316,36 @@ def test_precios_con_2_decimales_y_rendimientos_con_4(cliente_con_rol, empresa, 
     assert "12,40</span>" in html and "12,4000" not in html
 
 
+def test_precio_unitario_de_recursos_con_sus_decimales(cliente_con_rol, empresa, gerente):
+    propio = servicios.banco_propio()
+    tornillo = servicios.guardar_recurso(
+        Recurso(banco=propio, codigo="TOR", tipo=Recurso.MATERIAL, unidad="ud",
+                resumen="Tornillo", precio=D("0.0120")), gerente)  # fmt: skip
+    oficial = servicios.guardar_recurso(
+        Recurso(banco=propio, codigo="OF", tipo=Recurso.MANO_OBRA, unidad="h",
+                resumen="Oficial", precio=D("23.6250")), gerente)  # fmt: skip
+    partida = servicios.guardar_partida(
+        Partida(banco=propio, codigo="FIJ", unidad="ud", resumen="Fijación"),
+        [LineaDescompuesto(recurso=tornillo, rendimiento=D("4")),
+         LineaDescompuesto(recurso=oficial, rendimiento=D("0.0100"))], [], gerente,
+    )  # fmt: skip
+    cliente = cliente_con_rol("Gerencia")
+
+    lista = " ".join(cliente.get("/banco/recursos/").content.decode().split())
+    assert "0,012 </td>" in lista and "23,625 </td>" in lista and "0,01 </td>" not in lista
+
+    ficha = cliente.get(f"/banco/recursos/{tornillo.pk}/").content.decode()
+    assert 'value="0.012"' in ficha  # el campo del formulario
+    historial = ficha[ficha.index("Historial") :]
+    assert "0,012" in historial and "0,01<" not in historial
+
+    # En el descompuesto: el precio del recurso con sus decimales; importes y partida, con 2
+    html = cliente.get(f"/banco/partidas/{partida.pk}/").content.decode()
+    assert "0,012</td>" in html and "23,625</td>" in html
+    assert "0,05</td>" in html  # 4 × 0,012 = 0,048 → 0,05
+    assert partida.precio == D("0.2843") and "0,28</strong> / ud" in html  # 0,048 + 0,23625
+
+
 def test_historial_con_precios_a_2_decimales(cliente_con_rol, empresa, externo, gerente):
     copia = servicios.copiar_al_banco_propio(
         Partida.objects.get(banco=externo, codigo="ALB010"), gerente

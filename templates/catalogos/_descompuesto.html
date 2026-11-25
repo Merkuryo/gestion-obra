@@ -1,7 +1,9 @@
 {% comment %}
   Descompuesto de una partida (solo lectura). Uso: include con filas=filas ve_importes=ve_importes.
   filas: catalogos.servicios.filas_descompuesto. Sin «ver importes», precio e importe salen «(oculto)».
+  El precio de un recurso sale con sus decimales (2 a 4); el de una auxiliar y los importes, con 2.
 {% endcomment %}
+{% load componentes %}
 <div class="table-responsive">
   <table class="table table-sm align-middle bg-body">
     <thead class="table-light">
@@ -21,7 +23,7 @@
           <td class="cifra">{{ f.linea.merma_pct|floatformat:"-2" }}</td>
           <td class="cifra">{{ f.cantidad|floatformat:"4" }}</td>
           {% if ve_importes %}
-            <td class="cifra">{{ f.precio|floatformat:"2g"|default:"—" }}</td>
+            <td class="cifra">{% if f.linea.recurso_id %}{{ f.precio|precio_unitario|default:"—" }}{% else %}{{ f.precio|floatformat:"2g"|default:"—" }}{% endif %}</td>
             <td class="cifra">{{ f.importe|floatformat:"2g"|default:"—" }}</td>
           {% else %}
             <td class="text-body-secondary">(oculto)</td><td class="text-body-secondary">(oculto)</td>

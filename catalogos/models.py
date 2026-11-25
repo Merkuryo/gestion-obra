@@ -125,6 +125,7 @@ class Recurso(ModeloAuditado):
     history = HistoricalRecords()
     parte_permisos = "banco"
     campos_importe = ("precio",)
+    campos_precio_unitario = ("precio",)  # en pantalla con los decimales guardados (2 a 4)
 
     class Meta:
         verbose_name = "recurso"

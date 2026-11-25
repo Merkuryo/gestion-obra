@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views import View
 
+from core.cifras import DECIMALES_PRECIO_UNITARIO
 from core.listas import Columna, preparar_lista
 from core.permisos import ConPermiso, puede, puede_editar
 from core.secciones import seccion_elegida
@@ -147,7 +148,7 @@ COLUMNAS_RECURSOS = [
     Columna("resumen", "Resumen"),
     Columna("tipo", "Tipo", valor=lambda r: r.get_tipo_display()),
     Columna("unidad", "Ud"),
-    Columna("precio", "Precio", numerica=True),
+    Columna("precio", "Precio", numerica=True, decimales=DECIMALES_PRECIO_UNITARIO),
     Columna("pendiente", "Pendiente", tipo="badge", ordenable=False, valor=_pendiente),
 ]
 

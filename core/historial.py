@@ -6,6 +6,8 @@ ficha tenga historial, su modelo necesita `history = HistoricalRecords()` y `par
 
 - `campos_importe`: importes y costes (coste hora y similares), que solo ve quien tiene
   «ver importes» en esa parte y que se muestran con 2 decimales;
+- `campos_precio_unitario`: de esos, los precios unitarios, que se muestran con los decimales
+  guardados (mínimo 2, máximo 4);
 - `campos_margen`: márgenes y beneficio, que solo ve quien tiene «ver márgenes» en esa parte;
 - `campos_nominas`: campos que solo ve quien tiene el permiso de nóminas;
 - `campos_internos`: campos técnicos que no se muestran (p. ej. el grupo de Django de un rol);
@@ -36,6 +38,7 @@ from django.utils import formats, timezone
 from django.utils.text import capfirst
 
 from . import permisos
+from .cifras import redondear_precio
 
 POR_PAGINA = 20
 _BLOQUE = 50  # registros históricos que se leen de cada vez
@@ -149,8 +152,13 @@ def _texto(campo, valor):
         return formats.date_format(valor, "d/m/Y")
     if isinstance(valor, (Decimal, int, float)):
         # Importes y precios en pantalla con 2 decimales, redondeados (se guardan con los que
-        # tengan; number_format solo cortaría)
-        if campo.name in getattr(campo.model, "campos_importe", ()) and isinstance(valor, Decimal):
+        # tengan; number_format solo cortaría). Los precios unitarios (`campos_precio_unitario`),
+        # con los que tengan guardados, entre 2 y 4: un tornillo de 0,012 € no sale 0,01.
+        if campo.name in getattr(campo.model, "campos_precio_unitario", ()):
+            valor = redondear_precio(valor)
+        elif isinstance(valor, Decimal) and campo.name in getattr(
+            campo.model, "campos_importe", ()
+        ):
             valor = valor.quantize(Decimal("0.01"), ROUND_HALF_UP)
         return formats.number_format(valor, use_l10n=True, force_grouping=True)
     return str(valor)

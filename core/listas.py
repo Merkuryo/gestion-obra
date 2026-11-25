@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from django.db.models import Q, Sum
 
+from .cifras import decimales_precio
 from .permisos import OCULTO, campos_ocultos
 from .secciones import filtra_por_seccion, filtrar_por_seccion
 
@@ -14,11 +15,18 @@ class Columna:
     campo: str  # campo del modelo: sirve para ordenar y, si no hay `valor`, para leer el dato
     titulo: str
     numerica: bool = False  # alineada a la derecha, cifras tabulares
-    decimales: int = 2
+    decimales: int | tuple = 2  # (mínimo, máximo): los que tenga cada valor (precios unitarios)
     ordenable: bool = True
     total: bool = False  # suma de la columna (sobre todos los registros filtrados) en el pie
     tipo: str = "texto"  # "texto" | "badge" (el valor es una tupla (texto, color de Bootstrap))
     valor: object = None  # función opcional objeto -> valor a mostrar
+
+
+def _formato(columna, valor):
+    """Formato de `floatformat` para la celda."""
+    if isinstance(columna.decimales, tuple):
+        return f"{decimales_precio(valor, *columna.decimales)}g"
+    return f"{columna.decimales}g"
 
 
 def _valor(columna, objeto):
@@ -108,7 +116,7 @@ def preparar_lista(request, queryset, columnas, buscar_en=(), url_fila=None, por
                 "valor": _valor(c, objeto),
                 "numerica": c.numerica,
                 "tipo": c.tipo,
-                "formato": f"{c.decimales}g",
+                "formato": _formato(c, _valor(c, objeto)),
             }
             for c in columnas
         ]
@@ -124,7 +132,7 @@ def preparar_lista(request, queryset, columnas, buscar_en=(), url_fila=None, por
         totales = [
             {
                 "valor": sumas[f"t{i}"] or Decimal("0"),
-                "formato": f"{c.decimales}g",
+                "formato": _formato(c, None),
                 "numerica": c.numerica,
             }
             if c.total

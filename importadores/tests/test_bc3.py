@@ -468,3 +468,44 @@ def test_arbol_demasiado_profundo_no_rompe():
         lineas += [f"~C|A{i}|ud|Auxiliar {i}|1|||", f"~D|A{i}|A{i + 1}\\1\\1\\|"]
     r = leer_bc3(bc3(*lineas))
     assert any("pasa de 100 niveles" in e.mensaje for e in r.errores)
+
+
+# ── Ficheros en UTF-8 que declaran otro juego ──────────────────────────────────
+
+UTF8_LINEAS = (r"~C|R##||Raíz||||", r"~D|R##|C1#\1\1\|", "~C|C1#||Albañilería||||")
+
+
+@pytest.mark.parametrize("juego", ["ANSI", "850", "437"])
+def test_el_mismo_fichero_en_cp1252_y_en_utf8_da_albanileria(juego):
+    cabecera = f"~V|EMPRESA DE EJEMPLO|FIEBDC-3/2016|Programa de ejemplo||{juego}||2|||"
+    codificacion = {"ANSI": "cp1252", "850": "cp850", "437": "cp437"}[juego]
+    en_su_juego = leer_bc3(bc3(*UTF8_LINEAS, cabecera=cabecera, codificacion=codificacion))
+    en_utf8 = leer_bc3(bc3(*UTF8_LINEAS, cabecera=cabecera, codificacion="utf-8"))
+
+    assert en_su_juego.conceptos["C1#"].resumen == "Albañilería"
+    assert en_su_juego.codificacion == codificacion and en_su_juego.avisos == []
+
+    assert en_utf8.conceptos["C1#"].resumen == "Albañilería"
+    assert en_utf8.conceptos["R##"].resumen == "Raíz"
+    assert en_utf8.codificacion == "utf-8" and en_utf8.es_valido
+    [aviso] = en_utf8.avisos
+    assert aviso.mensaje == f"El fichero está en UTF-8 aunque declara {juego}: se lee como UTF-8."
+
+
+def test_utf8_sin_juego_declarado():
+    r = leer_bc3(bc3(*UTF8_LINEAS, cabecera="~V||FIEBDC-3/2016|||||2|||", codificacion="utf-8"))
+    assert r.conceptos["C1#"].resumen == "Albañilería" and r.codificacion == "utf-8"
+    assert any("aunque declara nada (cp1252 por defecto)" in m for m in mensajes(r, AVISO))
+
+
+def test_utf8_con_marca_bom():
+    datos = b"\xef\xbb\xbf" + bc3(*UTF8_LINEAS, codificacion="utf-8")
+    r = leer_bc3(datos)
+    assert r.conceptos["C1#"].resumen == "Albañilería" and r.codificacion == "utf-8"
+    assert not any("antes del primer registro" in m for m in mensajes(r))
+
+
+def test_fichero_solo_ascii_no_cambia_de_juego():
+    r = leer_bc3(bc3("~C|A|ud|Concepto sin tildes|1|||"))
+    assert r.codificacion == "cp1252"
+    assert not any("UTF-8" in m for m in mensajes(r))

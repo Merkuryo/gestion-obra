@@ -10,7 +10,8 @@ Formato (norma FIEBDC-3, versiones 2007, 2012, 2016 y 2020):
   con `\\`. Los saltos de línea dentro de un registro no cuentan (salvo en el texto de ~T).
 - Registros que se leen: ~V cabecera · ~K decimales y porcentajes · ~C conceptos ·
   ~D descomposiciones · ~T textos largos · ~M mediciones. Los demás se ignoran con un aviso.
-- Juego de caracteres según ~V: ANSI (cp1252), 850 o 437. Sin indicar, cp1252.
+- Juego de caracteres según ~V: ANSI (cp1252), 850 o 437. Sin indicar, cp1252. Si los bytes son
+  UTF-8 válido con caracteres no ASCII, se lee como UTF-8 con un aviso, diga lo que diga ~V.
 - Un código que acaba en `##` es la raíz; en `#`, un capítulo.
 
 Árbol: raíz → capítulos (y subcapítulos) → partidas → descompuestos, que a su vez pueden
@@ -335,6 +336,14 @@ class _Lector:
                 f"{CODIFICACION_POR_DEFECTO} (ANSI)."
             )
         codificacion = JUEGOS_DE_CARACTERES.get(juego, CODIFICACION_POR_DEFECTO)
+        utf8 = _como_utf8(self.datos)
+        if utf8 is not None:
+            # Hay programas que guardan en UTF-8 aunque la cabecera diga otra cosa. Un texto en
+            # español en cp1252, 850 o 437 casi nunca es UTF-8 válido, así que se puede distinguir.
+            declarado = juego or f"nada ({CODIFICACION_POR_DEFECTO} por defecto)"
+            self.aviso(f"El fichero está en UTF-8 aunque declara {declarado}: se lee como UTF-8.")
+            self.r.codificacion = "utf-8"
+            return utf8
         self.r.codificacion = codificacion
         texto = self.datos.decode(codificacion, errors="replace")
         if "�" in texto:
@@ -820,6 +829,19 @@ class _RegistroCrudo:
     resto: str
     contenido: str
     linea: int
+
+
+def _como_utf8(datos: bytes) -> str | None:
+    """El texto si `datos` es UTF-8 válido con algún carácter no ASCII (con o sin marca BOM);
+    None si es ASCII puro (se lee igual en cualquier juego) o no es UTF-8."""
+    if datos.startswith(b"\xef\xbb\xbf"):
+        datos = datos[3:]
+    elif datos.isascii():
+        return None
+    try:
+        return datos.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def _campo(campos, indice):

@@ -4,7 +4,7 @@ from django.contrib.auth.models import Group
 from core import servicios
 from core.historial import OCULTO, historial
 from core.models import Rol
-from core.permisos import olvidar_permisos
+from core.permisos import PARTES, olvidar_permisos
 from empresa import servicios as servicios_empresa
 from empresa.models import Seccion
 
@@ -272,7 +272,7 @@ def test_ficha_de_rol_con_permisos_y_usuarios(cliente_con_rol, empresa, django_u
     cliente.post(
         "/ajustes/roles/nuevo/",
         {"nombre": "Compras", "descripcion": "", "activo": "on", "usuarios": [compras.pk],
-         "ajustes__ver": "on", "ajustes__ambito": "todas", "roles__ambito": "todas"},
+         "ajustes__ver": "on", **{f"{parte}__ambito": "todas" for parte in PARTES}},
     )  # fmt: skip
     rol = Rol.objects.get(nombre="Compras")
     html = cliente.get(f"/ajustes/roles/{rol.pk}/").content.decode()

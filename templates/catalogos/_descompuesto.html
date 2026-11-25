@@ -1,0 +1,37 @@
+{% comment %}
+  Descompuesto de una partida (solo lectura). Uso: include con filas=filas ve_importes=ve_importes.
+  filas: catalogos.servicios.filas_descompuesto. Sin «ver importes», precio e importe salen «(oculto)».
+  El precio de un recurso sale con sus decimales (2 a 4); el de una auxiliar y los importes, con 2.
+{% endcomment %}
+{% load componentes %}
+<div class="table-responsive">
+  <table class="table table-sm align-middle bg-body">
+    <thead class="table-light">
+      <tr><th>Código</th><th>Tipo</th><th>Resumen</th><th>Ud</th>
+        <th class="text-end">Factor</th><th class="text-end">Rendimiento</th><th class="text-end">Merma %</th>
+        <th class="text-end">Cantidad / ud</th><th class="text-end">Precio</th><th class="text-end">Importe</th></tr>
+    </thead>
+    <tbody>
+      {% for f in filas %}
+        <tr>
+          <td>{{ f.linea.elemento.codigo }}</td>
+          <td>{{ f.tipo }}{% if f.linea.recurso.pendiente %} <span class="badge text-bg-warning" title="{{ f.linea.recurso.get_pendiente_display }}">pendiente</span>{% endif %}</td>
+          <td>{{ f.linea.elemento.resumen }}</td>
+          <td>{{ f.linea.elemento.unidad }}</td>
+          <td class="cifra">{{ f.linea.factor|floatformat:"-4" }}</td>
+          <td class="cifra">{{ f.linea.rendimiento|floatformat:"-4" }}</td>
+          <td class="cifra">{{ f.linea.merma_pct|floatformat:"-2" }}</td>
+          <td class="cifra">{{ f.cantidad|floatformat:"4" }}</td>
+          {% if ve_importes %}
+            <td class="cifra">{% if f.linea.recurso_id %}{{ f.precio|precio_unitario|default:"—" }}{% else %}{{ f.precio|floatformat:"2g"|default:"—" }}{% endif %}</td>
+            <td class="cifra">{{ f.importe|floatformat:"2g"|default:"—" }}</td>
+          {% else %}
+            <td class="text-body-secondary">(oculto)</td><td class="text-body-secondary">(oculto)</td>
+          {% endif %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="10" class="text-center text-body-secondary py-3">Sin descompuesto.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

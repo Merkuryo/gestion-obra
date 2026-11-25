@@ -18,6 +18,7 @@ VER = "V"
 PARTES = {
     "ajustes": "Empresa, secciones y ajustes",
     "roles": "Usuarios y roles",
+    "banco": "Banco de precios, artículos y tarifas",
 }
 
 ACCIONES = {

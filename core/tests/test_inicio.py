@@ -50,9 +50,9 @@ def test_superusuario_ve_ajustes_y_admin_de_django(client, django_user_model, em
     assert 'href="/ajustes/"' in html and "Admin de Django" in html
 
 
-def test_ajustes_es_el_unico_modulo_con_permiso_por_ahora():
+def test_modulos_con_permiso_por_ahora():
     con_permiso = [nombre for nombre, _icono, _url, permiso in MODULOS if permiso]
-    assert con_permiso == ["Ajustes"]
+    assert con_permiso == ["Banco de precios", "Ajustes"]
 
 
 def test_modulos_sin_construir_salen_como_proximamente(cliente_con_rol, empresa):

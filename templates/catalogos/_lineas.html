@@ -1,0 +1,24 @@
+{% comment %}Formset del descompuesto dentro del formulario de la partida (solo si se puede editar).{% endcomment %}
+{% if formset %}
+<h2 class="h6 mt-3">Líneas del descompuesto</h2>
+<p class="text-body-secondary small mb-2">Cantidad por unidad = factor × rendimiento × (1 + merma %). El precio de la partida se recalcula al guardar.</p>
+{{ formset.management_form }}
+{% if formset.non_form_errors %}<div class="alert alert-danger">{{ formset.non_form_errors|join:" " }}</div>{% endif %}
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead class="table-light"><tr><th>Recurso o partida auxiliar</th><th class="text-end">Factor</th><th class="text-end">Rendimiento</th><th class="text-end">Merma %</th><th>Quitar</th></tr></thead>
+    <tbody>
+      {% for f in formset %}
+        <tr>
+          <td>{% for oculto in f.hidden_fields %}{{ oculto }}{% endfor %}{{ f.elemento }}
+            {% if f.errors %}<div class="invalid-feedback d-block">{% for e in f.errors.values %}{{ e|join:" " }} {% endfor %}</div>{% endif %}</td>
+          <td style="max-width:8rem">{{ f.factor }}</td>
+          <td style="max-width:9rem">{{ f.rendimiento }}</td>
+          <td style="max-width:7rem">{{ f.merma_pct }}</td>
+          <td>{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

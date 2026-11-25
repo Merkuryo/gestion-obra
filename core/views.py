@@ -9,6 +9,7 @@ from .permisos import puede_ver
 # se muestra en gris como «próximamente».
 MODULOS = [
     ("Presupuestos", "bi-calculator", None, None),
+    ("Banco de precios", "bi-journal-text", "catalogos:partidas", "banco"),
     ("Obras", "bi-building", None, None),
     ("Producción", "bi-rulers", None, None),
     ("Proformas", "bi-receipt", None, None),

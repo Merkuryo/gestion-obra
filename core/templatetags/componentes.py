@@ -8,6 +8,18 @@ from core.permisos import puede_ver_historial
 register = template.Library()
 
 
+@register.filter
+def precio_unitario(valor):
+    """Precio unitario con los decimales guardados (mínimo 2, máximo 4): 0,0120 → «0,012»."""
+    from django.template.defaultfilters import floatformat
+
+    from core.cifras import decimales_precio
+
+    if valor is None or valor == "":
+        return ""
+    return floatformat(valor, f"{decimales_precio(valor)}g")
+
+
 @register.simple_tag
 def etapas_estado(etapas, actual):
     """Marca cada etapa como 'hecha', 'actual' o 'pendiente' según la etapa actual."""

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block titulo %}Buscar partidas · Banco de precios{% endblock %}
+{% block menu_modulo %}{% include "catalogos/_menu.html" with activo="buscar" %}{% endblock %}
+{% block contenido %}
+<h1 class="h4 mb-3">Buscar partidas</h1>
+<form method="get" action="{% url 'catalogos:buscar' %}" role="search" class="card card-body mb-3 py-2"
+      hx-get="{% url 'catalogos:buscar' %}" hx-target="#resultados" hx-push-url="true"
+      hx-trigger="input changed delay:300ms from:#q, change, submit">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-lg-5">
+      <label for="q" class="visually-hidden">Buscar</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="search" id="q" name="q" value="{{ filtros.q }}" class="form-control" placeholder="Código, resumen, texto o capítulo (sin tildes y con erratas)" autofocus autocomplete="off">
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+          <i class="bi bi-collection"></i> Bancos{% if filtros.bancos %} ({{ filtros.bancos|length }}){% endif %}
+        </button>
+        <div class="dropdown-menu p-2" style="min-width: 16rem">
+          <p class="small text-body-secondary mb-1">Sin marcar ninguno: todos.</p>
+          <div class="form-check"><input class="form-check-input" type="checkbox" name="banco" value="propio" id="banco-propio"{% if "propio" in filtros.bancos %} checked{% endif %}><label class="form-check-label" for="banco-propio">Banco propio</label></div>
+          {% for b in externos %}
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="banco" value="{{ b.pk|stringformat:"d" }}" id="banco-{{ b.pk|stringformat:"d" }}"{% if b.pk|stringformat:"s" in filtros.bancos %} checked{% endif %}><label class="form-check-label" for="banco-{{ b.pk|stringformat:"d" }}">{{ b.nombre }}</label></div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <label for="seccion" class="form-label small mb-0">Sección</label>
+      <select id="seccion" name="seccion" class="form-select form-select-sm">
+        <option value="">La de trabajo</option>
+        <option value="todas"{% if filtros.seccion == "todas" %} selected{% endif %}>Todas</option>
+        {% for s in secciones %}<option value="{{ s.pk|stringformat:"d" }}"{% if filtros.seccion == s.pk|stringformat:"s" %} selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-1">
+      <label for="unidad" class="form-label small mb-0">Unidad</label>
+      <input id="unidad" name="unidad" value="{{ filtros.unidad }}" class="form-control form-control-sm" list="unidades" maxlength="20">
+      <datalist id="unidades">{% for u in unidades %}<option value="{{ u }}">{% endfor %}</datalist>
+    </div>
+    <div class="col-6 col-lg-2">
+      <label for="capitulo" class="form-label small mb-0">Capítulo</label>
+      <input id="capitulo" name="capitulo" value="{{ filtros.capitulo }}" class="form-control form-control-sm" maxlength="100">
+    </div>
+    {% if resultado.ve_importes %}
+      <div class="col-6 col-lg-2">
+        <label class="form-label small mb-0" for="precio_min">Precio entre</label>
+        <div class="input-group input-group-sm">
+          <input id="precio_min" name="precio_min" value="{{ filtros.precio_min|default_if_none:'' }}" class="form-control cifra" inputmode="decimal" aria-label="Precio mínimo">
+          <span class="input-group-text">y</span>
+          <input name="precio_max" value="{{ filtros.precio_max|default_if_none:'' }}" class="form-control cifra" inputmode="decimal" aria-label="Precio máximo">
+        </div>
+      </div>
+    {% endif %}
+    <div class="col-auto">
+      <div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="auxiliares" value="1" id="auxiliares"{% if filtros.auxiliares %} checked{% endif %}><label class="form-check-label small" for="auxiliares">Incluir auxiliares</label></div>
+    </div>
+    <div class="col-auto"><button class="btn btn-primary btn-sm"><i class="bi bi-search"></i> Buscar</button></div>
+  </div>
+</form>
+<div id="resultados">{% include "catalogos/_resultados_busqueda.html" %}</div>
+{% endblock %}

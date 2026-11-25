@@ -13,6 +13,16 @@ MAX_BC3_MB = 100
 MAX_PLANTILLA_MB = 100
 
 
+class CampoPartida(forms.ModelChoiceField):
+    """La partida elegida con el selector (templates/catalogos/_selector_partida.html)."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("queryset", Partida.objects.select_related("banco"))
+        kwargs.setdefault("widget", forms.HiddenInput)
+        kwargs.setdefault("error_messages", {"invalid_choice": "Esa partida ya no existe."})
+        super().__init__(*args, **kwargs)
+
+
 class PrecioInput(forms.NumberInput):
     """Precio con 2 decimales en pantalla; si se guardó con más (hasta 4), se ven para no
     perderlos al volver a guardar: 2.7100 → «2.71», 23.6250 → «23.625»."""

@@ -1,0 +1,46 @@
+{% comment %}Resultados del buscador de partidas (también la respuesta HTMX). Contexto: catalogos/vistas_busqueda.BuscarPartidas.{% endcomment %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2 small">
+  <strong>{{ resultado.total }} partida{{ resultado.total|pluralize }}</strong>
+  {% if resultado.filtros.q %}<span class="text-body-secondary">por relevancia</span>{% endif %}
+  {% if resultado.seccion %}<span class="text-body-secondary">· Mostrando: sección {{ resultado.seccion }} y bancos externos · <a href="?{{ ver_todas }}">ver todas</a></span>{% endif %}
+  {% if resultado.ignoradas %}<span class="text-body-secondary">· No cuentan: {{ resultado.ignoradas|join:", " }}</span>{% endif %}
+</div>
+{% if filas %}
+<div class="table-responsive">
+<table class="table table-sm table-hover align-middle bg-body">
+  <thead class="table-light"><tr>
+    <th>Código</th><th>Resumen</th><th>Ud</th><th>Banco</th><th>Capítulo</th><th class="text-end">Precio</th><th><span class="visually-hidden">Acciones</span></th>
+  </tr></thead>
+  <tbody>
+  {% for f in filas %}
+    <tr>
+      <td class="text-nowrap"><a href="{{ f.url }}">{{ f.codigo }}</a></td>
+      <td>{{ f.resumen }}{% if f.partida.auxiliar %} <span class="badge text-bg-secondary">Auxiliar</span>{% endif %}
+        {% if f.fragmento %}<div class="small text-body-secondary">{{ f.fragmento }}</div>{% endif %}</td>
+      <td>{{ f.partida.unidad }}</td>
+      <td class="small">{% if f.partida.banco.es_propio %}<span class="badge text-bg-primary">Propio</span>{% if f.partida.seccion %} {{ f.partida.seccion.codigo }}{% endif %}{% else %}{{ f.partida.banco.nombre }}{% endif %}</td>
+      <td class="small">{{ f.partida.capitulo|default:"" }}</td>
+      <td class="cifra">{% if f.precio_oculto %}<span class="text-body-secondary">(oculto)</span>{% else %}{{ f.partida.precio|floatformat:"2g"|default:"—" }}{% endif %}</td>
+      <td class="text-end text-nowrap">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ f.url }}" title="Abrir la ficha"><i class="bi bi-box-arrow-up-right"></i><span class="visually-hidden">Abrir {{ f.partida.codigo }}</span></a>
+        {% if puede_copiar and not f.partida.banco.es_propio %}
+          <form method="post" action="{% url 'catalogos:partida_copiar' f.partida.banco_id f.partida.pk %}" class="d-inline">{% csrf_token %}
+            <button class="btn btn-outline-primary btn-sm"><i class="bi bi-copy"></i> Copiar al banco propio</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if resultado.paginas > 1 %}
+<nav aria-label="Páginas de resultados"><ul class="pagination pagination-sm">
+  {% if resultado.filtros.pagina > 1 %}<li class="page-item"><a class="page-link" href="?{{ consulta }}&amp;pagina={{ resultado.filtros.pagina|add:'-1'|stringformat:'d' }}">Anterior</a></li>{% endif %}
+  <li class="page-item disabled"><span class="page-link">Página {{ resultado.filtros.pagina }} de {{ resultado.paginas }}</span></li>
+  {% if resultado.hay_mas %}<li class="page-item"><a class="page-link" href="?{{ consulta }}&amp;pagina={{ resultado.filtros.pagina|add:'1'|stringformat:'d' }}">Siguiente</a></li>{% endif %}
+</ul></nav>
+{% endif %}
+{% else %}
+  <p class="text-body-secondary">{% if resultado.filtros.q %}No hay partidas que coincidan.{% else %}Escribe qué buscas o elige filtros.{% endif %}</p>
+{% endif %}

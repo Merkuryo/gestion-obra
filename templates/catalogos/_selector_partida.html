@@ -1,0 +1,28 @@
+{% comment %}
+  Selector de partida del banco (propio o externo) para otras pantallas.
+  Uso: {% include "catalogos/_selector_partida.html" with nombre="partida" unidad_destino=linea.unidad %}
+  Opcional: elegida=<Partida>. Deja un campo oculto `nombre` con el pk elegido (se valida con
+  catalogos.formularios.CampoPartida) y lanza el evento HTMX `partida-elegida`.
+  Las partidas de otra unidad que `unidad_destino` salen marcadas (core/unidades.misma_unidad).
+{% endcomment %}
+<div class="selector-partida" id="selector-{{ nombre }}">
+{% if elegida %}
+  <input type="hidden" name="{{ nombre }}" value="{{ elegida.pk|stringformat:"d" }}">
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <span><i class="bi bi-check-circle text-success"></i> <strong>{{ elegida.codigo }}</strong> {{ elegida.resumen }} <span class="text-body-secondary">({{ elegida.unidad|default:"sin unidad" }} · {% if elegida.banco.es_propio %}banco propio{% else %}{{ elegida.banco.nombre }}{% endif %})</span></span>
+    {% if otra_unidad %}<span class="badge text-bg-warning" role="alert"><i class="bi bi-exclamation-triangle"></i> Otra unidad: {{ elegida.unidad|default:"—" }} frente a {{ unidad_destino }}. Ajusta rendimientos y consumos.</span>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm"
+            hx-get="{% url 'catalogos:selector_componente' %}?nombre={{ nombre|urlencode }}&amp;unidad_destino={{ unidad_destino|urlencode }}"
+            hx-target="#selector-{{ nombre }}" hx-swap="outerHTML">Cambiar</button>
+  </div>
+{% else %}
+  <input type="hidden" name="{{ nombre }}" value="">
+  <label class="form-label small mb-1" for="selector-{{ nombre }}-q">Buscar partida en el banco{% if unidad_destino %} (unidad de la línea: {{ unidad_destino }}){% endif %}</label>
+  <input type="search" id="selector-{{ nombre }}-q" name="{{ nombre }}_buscar" class="form-control form-control-sm" autocomplete="off"
+         placeholder="Código, resumen o texto"
+         hx-get="{% url 'catalogos:selector' %}" hx-trigger="input changed delay:300ms, search"
+         hx-vals='{"nombre": "{{ nombre|escapejs }}", "unidad_destino": "{{ unidad_destino|escapejs }}"}'
+         hx-include="this" hx-target="#selector-{{ nombre }}-resultados">
+  <div id="selector-{{ nombre }}-resultados" class="mt-1" aria-live="polite"></div>
+{% endif %}
+</div>

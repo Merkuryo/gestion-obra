@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views, vistas_busqueda
 
 app_name = "catalogos"
 
@@ -22,6 +22,13 @@ urlpatterns = [
         "banco/externos/<int:banco_pk>/partidas/<int:pk>/copiar/",
         views.CopiarPartida.as_view(),
         name="partida_copiar",
+    ),
+    path("banco/buscar/", vistas_busqueda.BuscarPartidas.as_view(), name="buscar"),
+    path("banco/selector/", vistas_busqueda.SelectorResultados.as_view(), name="selector"),
+    path(
+        "banco/selector/componente/",
+        vistas_busqueda.SelectorComponente.as_view(),
+        name="selector_componente",
     ),
     path("banco/importar/", views.ImportarBC3.as_view(), name="importar_bc3"),
     path("banco/importar/plantilla/", views.ImportarPlantilla.as_view(), name="importar_plantilla"),

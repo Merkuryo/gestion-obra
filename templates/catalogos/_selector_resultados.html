@@ -1,0 +1,16 @@
+{% comment %}Resultados del selector de partida (HTMX). Contexto: catalogos/vistas_busqueda.SelectorResultados.{% endcomment %}
+{% if filas %}
+<div class="list-group list-group-flush small border rounded">
+  {% for f in filas %}
+    <button type="button" class="list-group-item list-group-item-action d-flex flex-wrap gap-2 align-items-center"
+            hx-get="{% url 'catalogos:selector_componente' %}?nombre={{ nombre|urlencode }}&amp;unidad_destino={{ unidad_destino|urlencode }}&amp;elegida={{ f.partida.pk|stringformat:"d" }}"
+            hx-target="#selector-{{ nombre }}" hx-swap="outerHTML">
+      <strong>{{ f.codigo }}</strong> <span>{{ f.resumen }}</span>
+      <span class="badge {% if f.otra_unidad %}text-bg-warning{% else %}text-bg-light{% endif %}"{% if f.otra_unidad %} title="Otra unidad que la de la línea ({{ unidad_destino }})"{% endif %}>{{ f.partida.unidad|default:"—" }}{% if f.otra_unidad %} · otra unidad{% endif %}</span>
+      <span class="text-body-secondary">{% if f.partida.banco.es_propio %}banco propio{% else %}{{ f.partida.banco.nombre }}{% endif %}</span>
+      <span class="ms-auto cifra">{% if f.precio_oculto %}<span class="text-body-secondary">(oculto)</span>{% else %}{{ f.partida.precio|floatformat:"2g"|default:"—" }}{% endif %}</span>
+    </button>
+  {% endfor %}
+</div>
+{% if resultado.total > filas|length %}<p class="small text-body-secondary mb-0 mt-1">{{ resultado.total }} en total: afina la búsqueda para ver otras.</p>{% endif %}
+{% elif resultado.filtros.q %}<p class="small text-body-secondary mb-0">No hay partidas que coincidan.</p>{% endif %}

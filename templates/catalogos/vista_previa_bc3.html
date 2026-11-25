@@ -12,11 +12,11 @@
     <div class="alert alert-success py-2 mb-2"><i class="bi bi-plus-circle"></i> Se creará un <strong>banco externo nuevo</strong>.</div>
   {% endif %}
   <ul class="list-inline mb-0">
-    <li class="list-inline-item"><strong>{{ vista.recuento.capitulos }}</strong> capítulos</li>
-    <li class="list-inline-item"><strong>{{ vista.recuento.partidas }}</strong> partidas</li>
-    <li class="list-inline-item"><strong>{{ vista.recuento.auxiliares }}</strong> auxiliares</li>
-    <li class="list-inline-item"><strong>{{ vista.recuento.recursos }}</strong> recursos</li>
-    <li class="list-inline-item"><strong>{{ vista.recuento.lineas }}</strong> líneas de descompuesto</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.capitulos }}</strong> capítulo{{ vista.recuento.capitulos|pluralize }}</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.partidas }}</strong> partida{{ vista.recuento.partidas|pluralize }}</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.auxiliares }}</strong> auxiliar{{ vista.recuento.auxiliares|pluralize:"es" }}</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.recursos }}</strong> recurso{{ vista.recuento.recursos|pluralize }}</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.lineas }}</strong> línea{{ vista.recuento.lineas|pluralize }} de descompuesto</li>
   </ul>
 </div></div>
 {% if vista.contenido.capitulos %}

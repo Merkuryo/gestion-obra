@@ -2,6 +2,7 @@
 
 from django.core.management.base import BaseCommand, CommandError
 
+from core.textos import contar
 from importadores.bc3 import leer_bc3
 
 MAX_INCIDENCIAS = 50
@@ -65,7 +66,7 @@ class Command(BaseCommand):
 
         escribir("No se ha guardado nada.")
         if r.errores:
-            raise CommandError(f"El fichero tiene {len(r.errores)} error(es).")
+            raise CommandError(f"El fichero tiene {contar(len(r.errores), 'error', 'errores')}.")
 
     def _pintar(self, nodo, nivel):
         if nodo.clase not in ("capitulo", "partida"):

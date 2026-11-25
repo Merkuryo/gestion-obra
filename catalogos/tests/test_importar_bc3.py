@@ -113,3 +113,37 @@ def test_fichero_sin_nada_que_importar(gerente):
     assert not vista.se_puede_importar and vista.errores
     with pytest.raises(ValidationError):
         servicios.importar_bc3(b"esto no es un BC3", "x.bc3", gerente)
+
+
+def _bc3_con_unidades(*unidades):
+    conceptos = "".join(
+        f"~C|P{n}|{u}|Partida {n}|1|||\r\n" for n, u in enumerate(unidades, start=1)
+    )
+    hijos = "".join(f"P{n}\\1\\1\\" for n in range(1, len(unidades) + 1))
+    return (
+        "~V||FIEBDC-3/2016|||ANSI||1|||\r\n~C|B##||Banco||||\r\n~D|B##|C#\\1\\1\\|\r\n"
+        f"~C|C#||Capítulo||||\r\n~D|C#|{hijos}|\r\n{conceptos}"
+    ).encode("cp1252")
+
+
+def test_unidades_normalizadas_al_importar_y_aviso_de_las_desconocidas(gerente):
+    datos = _bc3_con_unidades("M2", "m.l.", "u", "saco", "Saco")
+    vista = servicios.preparar_bc3(datos, "u.bc3")
+    aviso = "2 unidades no están en la lista de unidades y se guardan tal cual: «saco» y «Saco»."
+    assert aviso in vista.avisos
+    banco = servicios.importar_bc3(datos, "u.bc3", gerente).banco
+    guardadas = Partida.objects.filter(banco=banco).order_by("codigo")
+    assert [p.unidad for p in guardadas] == ["m²", "ml", "ud", "saco", "Saco"]
+    una = servicios.preparar_bc3(_bc3_con_unidades("m2", "rollo"), "u.bc3")
+    assert "1 unidad no está en la lista de unidades y se guarda tal cual: «rollo»." in una.avisos
+
+
+def test_avisos_en_singular(gerente):
+    datos = (
+        "~V||FIEBDC-3/2016|||ANSI||1|||\r\n~C|B##||Banco||||\r\n~D|B##|C#\\1\\1\\|\r\n"
+        "~C|C#||Capítulo||||\r\n~D|C#|P\\1\\1\\|\r\n~C|P|m2|Partida|1|||\r\n"
+        "~D|P|R\\1\\0.00125\\|\r\n~C|R|h|Recurso|10||1|\r\n"
+    ).encode("cp1252")
+    vista = servicios.preparar_bc3(datos, "r.bc3")
+    aviso = "1 precio o rendimiento con más de 4 decimales: se guarda redondeado a 4."
+    assert aviso in vista.avisos

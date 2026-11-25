@@ -9,7 +9,7 @@
 <p class="text-body-secondary small mb-3">
   {{ banco.fichero }}{% if banco.version_formato %} · {{ banco.version_formato }}{% endif %}{% if banco.programa %} · {{ banco.programa }}{% endif %}
   {% if banco.importado_en %} · importado el {{ banco.importado_en|date:"d/m/Y H:i" }}{% endif %}
-  · {{ recuento.capitulos }} capítulos · {{ recuento.auxiliares }} auxiliares · {{ recuento.recursos }} recursos
+  · {{ recuento.capitulos }} capítulo{{ recuento.capitulos|pluralize }} · {{ recuento.auxiliares }} auxiliar{{ recuento.auxiliares|pluralize:"es" }} · {{ recuento.recursos }} recurso{{ recuento.recursos|pluralize }}
 </p>
 {% include "componentes/_lista.html" with lista=lista %}
 {% endblock %}

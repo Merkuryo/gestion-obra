@@ -178,6 +178,43 @@ def _pintura_cambiada():
     return crear_plantilla(partidas=cambiadas)
 
 
+def test_que_cambia_en_una_hoja_que_ya_existe(plantilla, empresa, gerente):
+    _importar(plantilla, gerente)
+    primera = servicios.preparar_plantilla(_pintura_cambiada(), FICHERO).partidas[0]
+    assert primera.cambios == [
+        "«Pintura plástica blanca»: rendimiento 0,2500 → 0,3000",
+        "«Mano de obra (operario)»: rendimiento 0,0889 → 0,1778",
+    ]
+    assert primera.cambios_importe == ["mano de obra en la plantilla 2,10 → 4,20 €/ud"]
+    # 0,99 + 0,1778 × 23,625
+    assert (primera.existente.precio, primera.precio) == (D("2.9253"), D("5.1905"))
+
+    otra = [("PINTURA INTERIOR", 100, 2.1, [("Pintura satinada", 4.0, 0, 0.25)], 0, 0, 400),
+            *PARTIDAS[1:]]  # fmt: skip
+    vista = servicios.preparar_plantilla(
+        crear_plantilla(partidas=otra), FICHERO, coste_dia=D("200"), ajustes={0: {"unidad": "M.L."}}
+    )
+    primera = vista.partidas[0]
+    assert primera.unidad == "ml"
+    assert primera.cambios == [
+        "unidad m² → ml",
+        "se quita la línea «Pintura plástica blanca»",
+        "«Mano de obra (operario)»: rendimiento 0,0889 → 0,0840",
+        "línea nueva «Pintura satinada» (material nuevo en el banco)",
+    ]
+    assert primera.cambios_importe == ["precio de la mano de obra 23,63 → 25,00 €/h"]
+    # Con otro coste día cambian también las demás: 8 × 12,90 / 189 → 8 × 12,90 / 200
+    assert vista.partidas[1].cambios == ["«Mano de obra (operario)»: rendimiento 0,5460 → 0,5160"]
+    assert vista.partidas[1].estado == "falta elegir"
+
+
+def test_unidad_desconocida_se_guarda_tal_cual_con_aviso(plantilla, empresa, gerente):
+    vista = servicios.preparar_plantilla(plantilla, FICHERO, ajustes={0: {"unidad": "Saco"}})
+    assert vista.partidas[0].unidad == "Saco" and vista.se_puede_importar
+    assert ("PINTURA INTERIOR: la unidad «Saco» no está en la lista de unidades; se guarda tal "
+            "cual.") in vista.avisos  # fmt: skip
+
+
 def test_hoja_cambiada_crear_otra_con_codigo_nuevo(plantilla, empresa, gerente):
     _importar(plantilla, gerente)
     nueva = _pintura_cambiada()
@@ -286,7 +323,7 @@ def test_ajustes_de_la_vista_previa(plantilla, empresa, gerente):
                3: {"importar": False}}  # fmt: skip
     resumen = _importar(plantilla, gerente, ajustes=ajustes)
     assert len(resumen.creadas) == 3
-    assert _propia("PINT-INT").unidad == "m2"
+    assert _propia("PINT-INT").unidad == "m²"  # normalizada
     assert not Partida.objects.filter(resumen="BARNIZ MADERA").exists()
 
 

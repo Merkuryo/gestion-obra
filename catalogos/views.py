@@ -15,6 +15,7 @@ from django.views import View
 from core.listas import Columna, preparar_lista
 from core.permisos import ConPermiso, puede, puede_editar
 from core.secciones import seccion_elegida
+from core.textos import contar, enumerar
 
 from . import servicios
 from .formularios import (
@@ -125,8 +126,18 @@ class FichaPartida(ConPermiso, View):
                 form.add_error(None, error)
             else:
                 messages.success(request, f"Partida {guardada.codigo} guardada.")
+                _avisar_unidad(request, form)
                 return redirect("catalogos:partida", pk=guardada.pk)
         return self._pintar(request, form, formset, partida)
+
+
+def _avisar_unidad(request, form):
+    if form.unidad_rara:
+        messages.warning(
+            request,
+            f"La unidad «{form.cleaned_data['unidad']}» no está en la lista de unidades: se ha "
+            "guardado tal cual.",
+        )
 
 
 # ── Banco propio: recursos ─────────────────────────────────────────────────────
@@ -189,6 +200,7 @@ class FichaRecurso(ConPermiso, View):
                 guardado.pendiente = ""  # ya tiene el precio de la empresa
             guardado = servicios.guardar_recurso(guardado, request.user)
             messages.success(request, f"Recurso {guardado.codigo} guardado.")
+            _avisar_unidad(request, form)
             return redirect("catalogos:recurso", pk=guardado.pk)
         return self._pintar(request, form, recurso)
 
@@ -356,11 +368,14 @@ class ImportarBC3(ConPermiso, View):
             _borrar_subida(request)
         accion = "importado" if resumen.nuevo else "actualizado"
         c, a, b = resumen.creados, resumen.actualizados, resumen.borrados
+        partidas = enumerar([contar(c["partidas"], "partida nueva", "partidas nuevas"),
+                             contar(a["partidas"], "actualizada", "actualizadas"),
+                             contar(b["partidas"], "quitada", "quitadas")])  # fmt: skip
+        recursos = enumerar([contar(c["recursos"], "recurso nuevo", "recursos nuevos"),
+                             contar(a["recursos"], "actualizado", "actualizados"),
+                             contar(b["recursos"], "quitado", "quitados")])  # fmt: skip
         messages.success(
-            request,
-            f"Banco «{resumen.banco.nombre}» {accion}: partidas {c['partidas']} nuevas, "
-            f"{a['partidas']} actualizadas y {b['partidas']} quitadas; recursos {c['recursos']} "
-            f"nuevos, {a['recursos']} actualizados y {b['recursos']} quitados.",
+            request, f"Banco «{resumen.banco.nombre}» {accion}: {partidas}; {recursos}."
         )
         return redirect("catalogos:banco", pk=resumen.banco.pk)
 
@@ -476,9 +491,15 @@ class ImportarPlantilla(ConPermiso, View):
         _borrar_subida(request, SESION_PLANTILLA)
         messages.success(
             request,
-            f"Plantilla importada: {len(resumen.creadas)} partidas nuevas, "
-            f"{len(resumen.actualizadas)} actualizadas y {len(resumen.sin_cambios)} sin cambios; "
-            f"{resumen.recursos_creados} recursos nuevos. Revisa la mano de obra y los materiales "
-            "marcados como pendientes.",
+            "Plantilla importada: "
+            + enumerar(
+                [
+                    contar(len(resumen.creadas), "partida nueva", "partidas nuevas"),
+                    contar(len(resumen.actualizadas), "actualizada", "actualizadas"),
+                    f"{len(resumen.sin_cambios)} sin cambios",
+                ]
+            )
+            + f"; {contar(resumen.recursos_creados, 'recurso nuevo', 'recursos nuevos')}. Revisa "
+            "la mano de obra y los materiales marcados como pendientes.",
         )
         return redirect("catalogos:partidas")

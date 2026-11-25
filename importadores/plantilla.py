@@ -33,6 +33,9 @@ from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 
+from core.textos import contar
+from core.unidades import normalizar_unidad
+
 HOJAS_AUXILIARES = {"INDICE", "HOJA1", "HOJA2", "RESUMEN", "RESUMEN PARTIDAS", "MATERIAL"}
 FILAS_MATERIAL = range(14, 34)
 FILA_TITULOS = 12  # «MATERIALES» en la columna B
@@ -43,8 +46,6 @@ PARAMETROS_INDICE = {
     "F8": ("importe_km", "Importe por km (€/km)"),
     "F9": ("operarios_desplazados", "Operarios desplazados"),
 }
-UNIDADES = {"M2": "m²", "M²": "m²", "M3": "m³", "M³": "m³", "ML": "ml", "M": "m", "UD": "ud",
-            "U": "ud", "KG": "kg", "H": "h", "PA": "pa"}  # fmt: skip
 UNIDAD_POR_DEFECTO = "m²"
 CIEN = Decimal("100")
 
@@ -167,7 +168,8 @@ def unidad_de_etiqueta(etiqueta: str) -> str:
     primera = (etiqueta or "").split()
     if not primera:
         return UNIDAD_POR_DEFECTO
-    return UNIDADES.get(primera[0].upper().rstrip("."), UNIDAD_POR_DEFECTO)
+    valor, reconocida = normalizar_unidad(primera[0])
+    return valor if reconocida else UNIDAD_POR_DEFECTO
 
 
 _COSTE_DIA = re.compile(r"^=\+?\(?([0-9]+(?:[.,][0-9]+)?)\)?/\$?F\$?6$")
@@ -302,20 +304,21 @@ def _lecciones(libro_v, libro_f, r: ResultadoPlantilla):
             divisores.append(p.nombre)
     if financiero:
         r.lecciones.append(
-            Leccion(2, f"El gasto financiero usa una celda en una columna (F8) y otra en la otra "
-                    f"(H8, «% Obras») en {len(financiero)} hoja(s). No se importa: en la app "
-                    "cada porcentaje es un campo con nombre.")
+            Leccion(2, "El gasto financiero usa una celda en una columna (F8) y otra en la otra "
+                    f"(H8, «% Obras») en {contar(len(financiero), 'hoja', 'hojas')}. No se "
+                    "importa: en la app cada porcentaje es un campo con nombre.")
         )  # fmt: skip
     if gastos:
         r.lecciones.append(
-            Leccion(3, f"Gastos de empresa del 14 % escritos dentro de la fórmula en {len(gastos)} "
-                    "hoja(s): no se importan; la estructura va en el coste hora.")
+            Leccion(3, "Gastos de empresa del 14 % escritos dentro de la fórmula en "
+                    f"{contar(len(gastos), 'hoja', 'hojas')}: no se importan; la estructura va "
+                    "en el coste hora.")
         )  # fmt: skip
     if coste_dia:
         valor = r.coste_dia or COSTE_DIA_PLANTILLA
         r.lecciones.append(
             Leccion(3, f"Coste día de {valor:f} € escrito dentro de la fórmula del rendimiento en "
-                    f"{len(coste_dia)} hoja(s): aquí es un parámetro visible.")
+                    f"{contar(len(coste_dia), 'hoja', 'hojas')}: aquí es un parámetro visible.")
         )  # fmt: skip
 
     # 4. Desplazamiento: indirecto en RESUMEN y directo en RESUMEN PARTIDAS
@@ -337,15 +340,17 @@ def _lecciones(libro_v, libro_f, r: ResultadoPlantilla):
                 )  # fmt: skip
     if divisores:
         r.lecciones.append(
-            Leccion(6, f"Conversión a sacos o rollos con divisores fijos en {len(divisores)} "
-                    "hoja(s): no se importa; la unidad de compra irá en el artículo.")
+            Leccion(6, "Conversión a sacos o rollos con divisores fijos en "
+                    f"{contar(len(divisores), 'hoja', 'hojas')}: no se importa; la unidad de "
+                    "compra irá en el artículo.")
         )  # fmt: skip
 
     # 8. Partidas activas por su posición entre Hoja1 y Hoja2
     if "hoja1" in nombres and "hoja2" in nombres:
         activas = sum(p.activa for p in r.partidas)
         r.lecciones.append(
-            Leccion(8, f"{activas} hoja(s) entre Hoja1 y Hoja2 (activas en la plantilla) y "
+            Leccion(8, f"{contar(activas, 'hoja', 'hojas')} entre Hoja1 y Hoja2 (activas en la "
+                    "plantilla) y "
                     f"{len(r.partidas) - activas} de biblioteca: se importan todas igual.")
         )  # fmt: skip
 

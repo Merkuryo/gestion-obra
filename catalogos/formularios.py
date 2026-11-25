@@ -4,6 +4,7 @@ from django import forms
 from django.core.validators import FileExtensionValidator
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
+from core import unidades
 from core.formularios import FormularioBootstrap
 
 from .models import LineaDescompuesto, Partida, Recurso
@@ -23,22 +24,42 @@ class PrecioInput(forms.NumberInput):
         return super().format_value(value)
 
 
-class PartidaForm(FormularioBootstrap, forms.ModelForm):
+AYUDA_UNIDAD = (
+    "Se guarda en su forma normalizada (m2 → m², M.L. → ml, u → ud…): "
+    + ", ".join(unidades.CANONICAS)
+    + "."
+)
+
+
+class UnidadNormalizada:
+    """Normaliza la unidad al validar; `unidad_rara` dice si no está en la lista."""
+
+    unidad_rara = False
+
+    def clean_unidad(self):
+        valor, reconocida = unidades.normalizar_unidad(self.cleaned_data.get("unidad", ""))
+        self.unidad_rara = bool(valor) and not reconocida
+        return valor
+
+
+class PartidaForm(UnidadNormalizada, FormularioBootstrap, forms.ModelForm):
     grupos = [("Partida", ["codigo", "resumen", "unidad", "seccion", "texto"])]
 
     class Meta:
         model = Partida
         fields = ["codigo", "resumen", "unidad", "seccion", "texto"]
         widgets = {"texto": forms.Textarea(attrs={"rows": 4})}
+        help_texts = {"unidad": AYUDA_UNIDAD}
 
 
-class RecursoForm(FormularioBootstrap, forms.ModelForm):
+class RecursoForm(UnidadNormalizada, FormularioBootstrap, forms.ModelForm):
     grupos = [("Recurso", ["codigo", "tipo", "unidad", "resumen", "precio", "fecha_precio",
                            "texto"])]  # fmt: skip
 
     class Meta:
         model = Recurso
         fields = ["codigo", "tipo", "unidad", "resumen", "precio", "fecha_precio", "texto"]
+        help_texts = {"unidad": AYUDA_UNIDAD}
         widgets = {
             "texto": forms.Textarea(attrs={"rows": 3}),
             "fecha_precio": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),

@@ -18,6 +18,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from core import unidades
+from core.textos import contar, enumerar
 from importadores.bc3 import ResultadoBC3, leer_bc3
 
 from . import calculos
@@ -159,13 +161,29 @@ class VistaPreviaBC3:
     def avisos(self):
         avisos = [str(a) for a in self.resultado.avisos]
         if self.contenido.redondeos:
+            n = self.contenido.redondeos
             avisos.append(
-                f"{self.contenido.redondeos} precio(s) o rendimiento(s) con más de 4 decimales: "
-                "se guardan redondeados a 4."
+                f"{contar(n, 'precio o rendimiento', 'precios o rendimientos')} con más de 4 "
+                f"decimales: {'se guarda redondeado' if n == 1 else 'se guardan redondeados'} a 4."
             )
         if self.contenido.recortes:
+            n = self.contenido.recortes
             avisos.append(
-                f"{self.contenido.recortes} texto(s) más largos de lo admitido: se recortan."
+                f"{contar(n, 'texto más largo', 'textos más largos')} de lo admitido: "
+                f"{'se recorta' if n == 1 else 'se recortan'}."
+            )
+        raras = unidades.no_reconocidas(
+            c.unidad
+            for c in [*(con for con, _, _ in self.contenido.partidas.values()),
+                      *self.contenido.recursos.values()]
+        )  # fmt: skip
+        if raras:
+            avisos.append(
+                f"{contar(len(raras), 'unidad no está', 'unidades no están')} en la lista de "
+                f"unidades y {'se guarda' if len(raras) == 1 else 'se guardan'} tal cual: "
+                + enumerar(f"«{u}»" for u in raras[:20])
+                + (" …" if len(raras) > 20 else "")
+                + "."
             )
         return avisos
 
@@ -323,7 +341,7 @@ def importar_bc3(datos: bytes, fichero: str, actor) -> ResumenImportacion:
     recursos_deseados = {
         _texto(cod, "codigo"): {
             "tipo": TIPOS_BC3.get(con.tipo, Recurso.OTRO),
-            "unidad": _texto(con.unidad, "unidad"),
+            "unidad": _texto(unidades.unidad(con.unidad), "unidad"),
             "resumen": _texto(con.resumen, "resumen") or cod,
             "texto": con.texto,
             "precio": calculos.redondear_d4(con.precio)[0],
@@ -341,7 +359,7 @@ def importar_bc3(datos: bytes, fichero: str, actor) -> ResumenImportacion:
         _texto(cod, "codigo"): {
             # por id: comparar el objeto haría una consulta por partida al reimportar
             "capitulo_id": capitulos[_texto(cap, "codigo")].pk if cap else None,
-            "unidad": _texto(con.unidad, "unidad"),
+            "unidad": _texto(unidades.unidad(con.unidad), "unidad"),
             "resumen": _texto(con.resumen, "resumen") or cod,
             "texto": con.texto,
             "precio": calculos.redondear_d4(con.precio)[0],
@@ -456,6 +474,7 @@ def guardar_partida(partida: Partida, lineas, borrar, actor) -> Partida:
     """
     partida.banco = partida.banco if partida.banco_id else banco_propio()
     _solo_propio(partida)
+    partida.unidad = unidades.unidad(partida.unidad)
     _registrar(partida, actor)
     for linea in borrar:
         linea.delete()
@@ -475,6 +494,7 @@ def guardar_recurso(recurso: Recurso, actor) -> Recurso:
     """Guarda un recurso del banco propio y recalcula las partidas que lo usan."""
     recurso.banco = recurso.banco if recurso.banco_id else banco_propio()
     _solo_propio(recurso)
+    recurso.unidad = unidades.unidad(recurso.unidad)
     _registrar(recurso, actor)
     recalcular_dependientes(Partida.objects.filter(lineas__recurso=recurso).distinct(), actor)
     return recurso
@@ -709,6 +729,8 @@ class PartidaPrevista:
     horas_mo: Decimal | None = None
     errores: list = field(default_factory=list)
     cambia: bool = True
+    cambios: list = field(default_factory=list)  # qué cambia si se actualiza la existente
+    cambios_importe: list = field(default_factory=list)  # los que llevan importes
 
     @property
     def importar(self):
@@ -768,8 +790,9 @@ class VistaPreviaPlantilla:
         lecciones = list(self.resultado.lecciones)
         if self.uniones:
             lecciones.append(
-                Leccion(5, f"{len(self.uniones)} pareja(s) de materiales con nombres casi iguales "
-                        "(posibles erratas): elige cuáles son el mismo material.")
+                Leccion(5, f"{contar(len(self.uniones), 'pareja', 'parejas')} de materiales "
+                        "con nombres casi iguales (posibles erratas): elige cuáles son el mismo "
+                        "material.")
             )  # fmt: skip
         return sorted(lecciones, key=lambda leccion: leccion.numero)
 
@@ -869,17 +892,61 @@ def _lineas_iguales(partida, lineas):
     return actuales == nuevas
 
 
-def _partida_cambia(prevista, mano_obra, coste_hora):
-    """¿Actualizar la partida del banco con la hoja cambiaría algo?"""
+def _num(valor, decimales):
+    from django.template.defaultfilters import floatformat
+
+    return "—" if valor is None else floatformat(valor, decimales)
+
+
+def _cambios_partida(prevista, mano_obra, coste_hora):
+    """Qué cambiaría al actualizar la partida del banco con la hoja: (cambios, cambios de
+    importes). Los de importes solo se enseñan a quien puede ver importes."""
     e, p = prevista.existente, prevista
+    cambios, importes = [], []
+    if e.codigo != p.codigo:
+        cambios.append(f"código {e.codigo} → {p.codigo}")
+    if e.unidad != p.unidad:
+        cambios.append(f"unidad {e.unidad or '—'} → {p.unidad}")
+    if e.resumen != p.hoja.nombre[: LARGO["resumen"]]:
+        cambios.append(f"nombre «{e.resumen}» → «{p.hoja.nombre}»")
     mo_ref = calculos.redondear_d4(p.hoja.precio_mo)[0]
-    return bool(
-        (e.codigo, e.unidad, e.resumen, e.precio_mo_referencia)
-        != (p.codigo, p.unidad, p.hoja.nombre[: LARGO["resumen"]], mo_ref)
-        or any(ln.recurso is None for ln in p.lineas)
-        or not _lineas_iguales(e, p.lineas)
-        or (mano_obra and p.horas_mo and mano_obra.precio != coste_hora)
-    )
+    if e.precio_mo_referencia != mo_ref:
+        importes.append(f"mano de obra en la plantilla {_num(e.precio_mo_referencia, 2)} → "
+                        f"{_num(mo_ref, 2)} €/ud")  # fmt: skip
+
+    # Líneas del descompuesto, casadas por recurso (o partida auxiliar)
+    actuales = {}
+    for ln in e.lineas.select_related("recurso", "auxiliar"):
+        origen = ln.recurso or ln.auxiliar
+        actuales[origen.codigo if origen else None] = (origen.resumen if origen else "", ln)
+    nuevas = {}
+    for ln in p.lineas:
+        nuevas[ln.recurso.codigo if ln.recurso else f"nuevo:{ln.clave}"] = ln
+    for clave, (resumen, ln) in actuales.items():
+        if clave not in nuevas:
+            cambios.append(f"se quita la línea «{resumen}»")
+            continue
+        nueva = nuevas[clave]
+        rendimiento = ln.factor * ln.rendimiento
+        if (ln.factor, ln.rendimiento) != (Decimal("1"), nueva.rendimiento):
+            cambios.append(f"«{resumen}»: rendimiento {_num(rendimiento, 4)} → "
+                           f"{_num(nueva.rendimiento, 4)}")  # fmt: skip
+        if ln.merma_pct != nueva.merma_pct:
+            cambios.append(f"«{resumen}»: merma {_num(ln.merma_pct, -2)} % → "
+                           f"{_num(nueva.merma_pct, -2)} %")  # fmt: skip
+    for clave, ln in nuevas.items():
+        if clave not in actuales:
+            nuevo = " (material nuevo en el banco)" if ln.recurso is None else ""
+            cambios.append(f"línea nueva «{ln.resumen}»{nuevo}")
+    comunes = [c for c in actuales if c in nuevas]
+    if comunes != [c for c in nuevas if c in actuales]:
+        cambios.append("cambia el orden de las líneas")
+    if not cambios and not _lineas_iguales(e, p.lineas):
+        cambios.append("cambia el descompuesto")  # p. ej. un recurso en dos líneas
+    if mano_obra and p.horas_mo and mano_obra.precio != coste_hora:
+        importes.append(f"precio de la mano de obra {_num(mano_obra.precio, 2)} → "
+                        f"{_num(coste_hora, 2)} €/h")  # fmt: skip
+    return cambios, importes
 
 
 def preparar_plantilla(datos: bytes, fichero: str, *, coste_dia=None, ajustes=None,
@@ -980,7 +1047,7 @@ def preparar_plantilla(datos: bytes, fichero: str, *, coste_dia=None, ajustes=No
             codigo = next(codigos_nuevos)
         if not codigo:
             codigo = existente.codigo if existente else next(codigos_nuevos)
-        unidad = (ajuste.get("unidad") or "").strip()
+        unidad = unidades.unidad(ajuste.get("unidad") or "")
         if not unidad:
             de_existente = existente and existente.unidad and accion != CREAR
             unidad = existente.unidad if de_existente else hoja.unidad
@@ -1019,7 +1086,10 @@ def preparar_plantilla(datos: bytes, fichero: str, *, coste_dia=None, ajustes=No
                               recursos_fijos.get(CODIGO_MO))
             )  # fmt: skip
         if existente is not None:
-            prevista.cambia = _partida_cambia(prevista, recursos_fijos.get(CODIGO_MO), coste_hora)
+            prevista.cambios, prevista.cambios_importe = _cambios_partida(
+                prevista, recursos_fijos.get(CODIGO_MO), coste_hora
+            )
+            prevista.cambia = bool(prevista.cambios or prevista.cambios_importe)
             if accion is None:
                 prevista.accion = "" if prevista.cambia else OMITIR
         partidas.append(prevista)
@@ -1040,6 +1110,9 @@ def preparar_plantilla(datos: bytes, fichero: str, *, coste_dia=None, ajustes=No
             p.errores.append(f"el código {p.codigo} ya es de otra partida del banco propio.")
         if not p.unidad or len(p.unidad) > LARGO["unidad"]:
             p.errores.append("falta la unidad (o pasa de 20 caracteres).")
+        elif not unidades.reconocida(p.unidad):
+            avisos.append(f"{p.hoja.nombre}: la unidad «{p.unidad}» no está en la lista de "
+                          "unidades; se guarda tal cual.")  # fmt: skip
 
     return VistaPreviaPlantilla(
         resultado, fichero, coste_dia, provisional, jornada, partidas, lista_uniones, avisos

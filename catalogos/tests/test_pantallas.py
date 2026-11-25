@@ -96,6 +96,7 @@ def test_importar_con_vista_previa_y_confirmacion(cliente_con_rol, empresa, medi
     assert respuesta.status_code == 200 and "Resumen antes de importar" in html
     assert "Se creará un <strong>banco externo nuevo</strong>" in html
     assert "<strong>3</strong> partidas" in html and "<strong>8</strong> recursos" in html
+    assert "<strong>1</strong> auxiliar</li>" in html  # singular
     assert "~L ignorados" in html
     assert not Banco.objects.filter(tipo=Banco.EXTERNO).exists()  # aún no se ha guardado nada
 
@@ -108,8 +109,10 @@ def test_importar_con_vista_previa_y_confirmacion(cliente_con_rol, empresa, medi
     # Volver a subirlo avisa de que se actualizará
     html = _subir(cliente, presupuesto_bc3).content.decode()
     assert "se actualizará" in html
-    cliente.post("/banco/importar/", {"confirmar": ""})
+    respuesta = cliente.post("/banco/importar/", {"confirmar": ""}, follow=True)
     assert Banco.objects.filter(tipo=Banco.EXTERNO).count() == 1
+    assert ("actualizado: 0 partidas nuevas, 0 actualizadas y 0 quitadas; 0 recursos nuevos, 0 "
+            "actualizados y 0 quitados.") in respuesta.content.decode()  # fmt: skip
 
 
 def test_cancelar_no_guarda_nada(cliente_con_rol, empresa, media_temporal, presupuesto_bc3):
@@ -212,6 +215,20 @@ def test_alta_de_partida_con_descompuesto(cliente_con_rol, empresa, recursos_pro
     assert "Pintura plástica" in html and "3,72" in html and "Historial" in html
 
 
+def test_unidad_normalizada_al_guardar_y_aviso_si_no_se_reconoce(cliente_con_rol, empresa,
+                                                                 recursos_propios):  # fmt: skip
+    cliente = cliente_con_rol("Oficina técnica")
+    form = cliente.get("/banco/partidas/nueva/").content.decode()
+    assert "Se guarda en su forma normalizada" in form
+    respuesta = cliente.post("/banco/partidas/nueva/", _datos_partida([]), follow=True)
+    assert Partida.objects.get(codigo="PIN-01").unidad == "m²"
+    assert "no está en la lista de unidades" not in respuesta.content.decode()
+    datos = _datos_partida([], codigo="PIN-02", unidad=" Bote ")
+    respuesta = cliente.post("/banco/partidas/nueva/", datos, follow=True)
+    assert Partida.objects.get(codigo="PIN-02").unidad == "Bote"
+    assert "La unidad «Bote» no está en la lista de unidades" in respuesta.content.decode()
+
+
 def test_editar_el_descompuesto_recalcula_y_queda_en_el_historial(
     cliente_con_rol, empresa, recursos_propios
 ):
@@ -291,7 +308,7 @@ def test_precios_con_2_decimales_y_rendimientos_con_4(cliente_con_rol, empresa, 
     )
     cliente = cliente_con_rol("Gerencia")
     html = cliente.get(f"/banco/partidas/{copia.pk}/").content.decode()
-    assert "7,44</strong> / m2" in html and "7,4375" not in html  # precio 7,4375 guardado
+    assert "7,44</strong> / m²" in html and "7,4375" not in html  # precio 7,4375 guardado
     assert "22,50" in html and "22,5000" not in html  # precio del recurso en el descompuesto
     assert "0,2500" in html  # rendimiento con 4 decimales
     externa = Partida.objects.get(banco=externo, codigo="ALB010")
@@ -391,6 +408,11 @@ def test_plantilla_hoja_que_ya_existe_hay_que_elegir(cliente_con_rol, empresa, m
     assert 'name="accion_0"' in html and 'name="importar_0"' not in html
     assert '<option value="omitir" selected>' in html  # las que no cambian
     assert "% beneficio" in html and "Crear otra (código nuevo)" in html
+    # Precio actual en el banco frente al de la plantilla, y qué cambia
+    assert "Precio actual en el banco" in html and "Precio con la plantilla" in html
+    assert "2,93" in html and "5,19" in html
+    assert "Qué cambia si se actualiza" in html and "rendimiento 0,2500 → 0,3000" in html
+    assert "mano de obra en la plantilla 2,10 → 4,20 €/ud" in html
 
     # Sin elegir no importa: vuelve a la vista previa con el error
     datos = {
@@ -407,8 +429,10 @@ def test_plantilla_hoja_que_ya_existe_hay_que_elegir(cliente_con_rol, empresa, m
     assert Partida.objects.get(codigo="P-001").precio_mo_referencia == D("2.1000")
 
     datos["accion_0"] = "actualizar"
-    respuesta = cliente.post("/banco/importar/plantilla/", datos)
-    assert respuesta.status_code == 302
+    respuesta = cliente.post("/banco/importar/plantilla/", datos, follow=True)
+    assert respuesta.redirect_chain[0][1] == 302
+    assert ("Plantilla importada: 0 partidas nuevas, 1 actualizada y 0 sin cambios; 0 recursos "
+            "nuevos.") in respuesta.content.decode()  # fmt: skip
     assert Partida.objects.get(codigo="P-001").precio_mo_referencia == D("4.2000")
     assert Partida.objects.filter(banco=servicios.banco_propio()).count() == 4
 

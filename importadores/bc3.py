@@ -30,6 +30,8 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 
+from core.textos import contar
+
 VERSIONES = ("FIEBDC-3/2007", "FIEBDC-3/2012", "FIEBDC-3/2016", "FIEBDC-3/2020")
 JUEGOS_DE_CARACTERES = {"ANSI": "cp1252", "850": "cp850", "437": "cp437"}
 CODIFICACION_POR_DEFECTO = "cp1252"
@@ -727,7 +729,10 @@ class _Lector:
                 en_arbol.add(nodo.codigo)
             sueltos = len(r.conceptos) - len(en_arbol)
             if sueltos:
-                self.aviso(f"{sueltos} concepto(s) no cuelgan del árbol de la raíz.")
+                self.aviso(
+                    f"{contar(sueltos, 'concepto no cuelga', 'conceptos no cuelgan')} del árbol "
+                    "de la raíz."
+                )
 
     def _clave(self, codigo):
         concepto = self._buscar(codigo)

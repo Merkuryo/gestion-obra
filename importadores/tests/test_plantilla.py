@@ -30,7 +30,7 @@ def test_todas_las_hojas_de_partida_activas_y_de_biblioteca(plantilla):
     ]  # fmt: skip
     assert plantilla.hojas_ignoradas == ["NOTAS"]
     assert any("«NOTAS» no tiene la forma de una partida" in a for a in plantilla.avisos)
-    assert any(lec.numero == 8 and "3 hoja(s) entre Hoja1 y Hoja2" in lec.texto
+    assert any(lec.numero == 8 and "3 hojas entre Hoja1 y Hoja2" in lec.texto
                for lec in plantilla.lecciones)  # fmt: skip
 
 

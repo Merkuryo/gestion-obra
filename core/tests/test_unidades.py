@@ -10,7 +10,7 @@ from core.unidades import CANONICAS, misma_unidad, no_reconocidas, normalizar_un
         ("m2", "m²"), ("M2", "m²"), ("m²", "m²"), ("M²", "m²"), ("m 2", "m²"), ("m2.", "m²"),
         ("m3", "m³"), ("M3", "m³"), ("m³", "m³"),
         ("ml", "ml"), ("ML", "ml"), ("m.l.", "ml"), ("M.L.", "ml"), ("m l", "ml"),
-        ("m", "m"), ("M", "m"),
+        ("m", "ml"), ("M", "ml"), ("m.", "ml"),
         ("ud", "ud"), ("u", "ud"), ("UD", "ud"), ("Ud.", "ud"), ("uds", "ud"), ("U", "ud"),
         ("h", "h"), ("H", "h"), ("hora", "h"),
         ("kg", "kg"), ("Kg", "kg"), ("l", "l"), ("L", "l"), ("lt", "l"),
@@ -36,7 +36,8 @@ def test_no_reconocida_se_guarda_tal_cual_sin_espacios_de_mas():
 
 def test_misma_unidad():
     assert misma_unidad("m2", "M²") and misma_unidad("ML", "m.l.") and misma_unidad("u", "UD")
-    assert not misma_unidad("m", "ml") and not misma_unidad("m²", "m³")
+    assert misma_unidad("m", "ml") and misma_unidad("M", "m.l.")
+    assert not misma_unidad("m", "m²") and not misma_unidad("m²", "m³")
     assert misma_unidad("Saco", "saco")
 
 

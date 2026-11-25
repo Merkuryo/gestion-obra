@@ -17,12 +17,13 @@ def test_migracion_normaliza_las_unidades_ya_guardadas():
         Partida(banco=propio, codigo="A", unidad="M2", resumen="a"),
         Partida(banco=externo, codigo="B", unidad="m.l.", resumen="b"),
         Partida(banco=externo, codigo="C", unidad=" saco ", resumen="c"),
+        Partida(banco=externo, codigo="D", unidad="m", resumen="d"),
     ])  # fmt: skip
     Recurso.objects.bulk_create([Recurso(banco=propio, codigo="R", unidad="UD", resumen="r")])
-    migracion = importlib.import_module("catalogos.migrations.0004_normalizar_unidades")
+    migracion = importlib.import_module("catalogos.migrations.0005_metro_es_metro_lineal")
     migracion.normalizar(apps, None)
     assert dict(Partida.objects.values_list("codigo", "unidad")) == {
-        "A": "m²", "B": "ml", "C": "saco",
+        "A": "m²", "B": "ml", "C": "saco", "D": "ml",
     }  # fmt: skip
     assert Recurso.objects.get(codigo="R").unidad == "ud"
 

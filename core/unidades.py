@@ -15,8 +15,7 @@ import unicodedata
 EQUIVALENCIAS = {
     "m²": ("m2",),
     "m³": ("m3",),
-    "ml": ("ml",),
-    "m": ("m",),
+    "ml": ("ml", "m"),  # «m» es metro lineal
     "ud": ("ud", "u", "uds", "un", "und", "unidad", "unidades"),
     "h": ("h", "hr", "hora", "horas"),
     "d": ("d", "dia", "dias"),
@@ -58,7 +57,7 @@ def reconocida(texto: str) -> bool:
 
 
 def misma_unidad(a: str, b: str) -> bool:
-    """¿Son la misma unidad? «m2» y «M²», sí; «m» y «ml», no (son unidades distintas aquí)."""
+    """¿Son la misma unidad? «m2» y «M²», sí; «m» y «ml», también; «m²» y «m³», no."""
     ua, ub = unidad(a), unidad(b)
     return ua.casefold() == ub.casefold()
 

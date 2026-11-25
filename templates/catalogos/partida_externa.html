@@ -15,7 +15,7 @@
   <dt class="col-sm-2">Banco</dt><dd class="col-sm-10">{{ banco }}</dd>
   {% if partida.capitulo %}<dt class="col-sm-2">Capítulo</dt><dd class="col-sm-10">{{ partida.capitulo }}</dd>{% endif %}
   <dt class="col-sm-2">Unidad</dt><dd class="col-sm-10">{{ partida.unidad|default:"—" }}</dd>
-  <dt class="col-sm-2">Precio</dt><dd class="col-sm-10">{% if ve_importes %}<span class="cifra">{{ partida.precio|floatformat:"4g"|default:"—" }}</span>{% else %}<span class="text-body-secondary">(oculto)</span>{% endif %}</dd>
+  <dt class="col-sm-2">Precio</dt><dd class="col-sm-10">{% if ve_importes %}<span class="cifra">{{ partida.precio|floatformat:"2g"|default:"—" }}</span>{% else %}<span class="text-body-secondary">(oculto)</span>{% endif %}</dd>
   {% if partida.texto %}<dt class="col-sm-2">Texto</dt><dd class="col-sm-10" style="white-space: pre-line">{{ partida.texto }}</dd>{% endif %}
 </dl>
 <h2 class="h6">Descompuesto por unidad</h2>

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block titulo %}Importar plantilla · Banco de precios{% endblock %}
+{% block menu_modulo %}{% include "catalogos/_menu.html" with activo="plantilla" %}{% endblock %}
+{% block contenido %}
+<h1 class="h4 mb-3">Importar una plantilla de cálculo al banco propio</h1>
+<div class="row"><div class="col-12 col-lg-8">
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+  {% include "componentes/_campo.html" with campo=form.fichero %}
+  <button class="btn btn-primary"><i class="bi bi-eye"></i> Ver resumen</button>
+</form>
+<p class="text-body-secondary small mt-3">Cada hoja de partida pasa a ser una partida del banco propio con su descompuesto: materiales con su consumo y merma, fijaciones, transportes y la mano de obra convertida en horas por unidad con el coste día. No se importan los gastos de empresa, el beneficio, los márgenes, el desplazamiento ni los resúmenes. Si una hoja ya se importó (mismo nombre), su partida se actualiza.</p>
+</div></div>
+{% endblock %}

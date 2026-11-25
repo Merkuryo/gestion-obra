@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.core.validators import FileExtensionValidator
 from django.forms import BaseInlineFormSet, inlineformset_factory
@@ -7,6 +9,18 @@ from core.formularios import FormularioBootstrap
 from .models import LineaDescompuesto, Partida, Recurso
 
 MAX_BC3_MB = 100
+MAX_PLANTILLA_MB = 100
+
+
+class PrecioInput(forms.NumberInput):
+    """Precio con 2 decimales en pantalla; si se guardó con más (hasta 4), se ven para no
+    perderlos al volver a guardar: 2.7100 → «2.71», 23.6250 → «23.625»."""
+
+    def format_value(self, value):
+        if isinstance(value, Decimal):
+            exponente = min(value.normalize().as_tuple().exponent, -2)
+            value = value.quantize(Decimal(1).scaleb(exponente))
+        return super().format_value(value)
 
 
 class PartidaForm(FormularioBootstrap, forms.ModelForm):
@@ -28,6 +42,7 @@ class RecursoForm(FormularioBootstrap, forms.ModelForm):
         widgets = {
             "texto": forms.Textarea(attrs={"rows": 3}),
             "fecha_precio": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "precio": PrecioInput(attrs={"step": "0.0001"}),
         }
 
 
@@ -116,4 +131,22 @@ class ImportarBC3Form(forms.Form):
         fichero = self.cleaned_data["fichero"]
         if fichero.size > MAX_BC3_MB * 1024 * 1024:
             raise forms.ValidationError(f"El fichero pasa de {MAX_BC3_MB} MB.")
+        return fichero
+
+
+class ImportarPlantillaForm(forms.Form):
+    fichero = forms.FileField(
+        label="Plantilla de cálculo",
+        validators=[FileExtensionValidator(["xlsx", "xlsm"], "El fichero debe ser .xlsx o .xlsm.")],
+        help_text=(
+            f"Libro de Excel con una hoja por partida (.xlsx o .xlsm), hasta {MAX_PLANTILLA_MB} "
+            "MB. No se ejecutan macros. Antes de guardar verás un resumen."
+        ),
+        widget=forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".xlsx,.xlsm"}),
+    )
+
+    def clean_fichero(self):
+        fichero = self.cleaned_data["fichero"]
+        if fichero.size > MAX_PLANTILLA_MB * 1024 * 1024:
+            raise forms.ValidationError(f"El fichero pasa de {MAX_PLANTILLA_MB} MB.")
         return fichero

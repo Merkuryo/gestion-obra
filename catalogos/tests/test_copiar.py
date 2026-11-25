@@ -100,3 +100,13 @@ def test_los_bancos_externos_son_de_solo_lectura(externo, gerente):
         servicios.guardar_partida(partida, [], [], gerente)
     with pytest.raises(ValidationError, match="solo lectura"):
         servicios.guardar_recurso(Recurso.objects.get(banco=externo, codigo="MO1"), gerente)
+
+
+def test_la_copia_entra_en_el_historial_como_alta_con_su_origen(externo, gerente):
+    copia = servicios.copiar_al_banco_propio(_partida(externo, "ALB010"), gerente)
+    registros = list(copia.history.all())
+    assert [r.history_type for r in registros] == ["+"]  # sin «Cambio» de recálculo detrás
+    assert registros[0].history_change_reason == "Copiada de Reforma de baño de ejemplo · ALB010"
+    assert registros[0].precio == D("7.4375")  # el alta ya lleva el precio recalculado
+    auxiliar = _partida(servicios.banco_propio(), "AX1")
+    assert [r.history_type for r in auxiliar.history.all()] == ["+"]

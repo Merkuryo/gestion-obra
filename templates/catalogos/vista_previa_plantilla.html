@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block titulo %}Resumen de la plantilla · Banco de precios{% endblock %}
+{% block menu_modulo %}{% include "catalogos/_menu.html" with activo="plantilla" %}{% endblock %}
+{% block contenido %}
+<h1 class="h4 mb-3">Resumen antes de importar</h1>
+<form method="post">
+{% csrf_token %}
+<input type="hidden" name="num_partidas" value="{{ vista.partidas|length }}">
+<div class="card mb-3"><div class="card-body">
+  <p class="mb-2"><strong>{{ vista.fichero }}</strong></p>
+  <ul class="list-inline mb-2">
+    <li class="list-inline-item"><strong>{{ vista.recuento.nuevas }}</strong> nuevas</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.actualizadas }}</strong> se actualizan</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.sin_cambios }}</strong> sin cambios</li>
+    <li class="list-inline-item"><strong>{{ vista.recuento.omitidas }}</strong> no se importan</li>
+  </ul>
+  <p class="small text-body-secondary mb-2">Las partidas nuevas van a la sección {% if seccion %}<strong>{{ seccion }}</strong>{% else %}<strong>ninguna</strong> (estás en «Todas las secciones»: asígnasela después en cada ficha){% endif %}.</p>
+  {% if ve_importes %}
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label for="coste_dia" class="form-label mb-0 small">Coste día por operario (€)</label>
+        <input id="coste_dia" name="coste_dia" class="form-control form-control-sm cifra" value="{{ vista.coste_dia|floatformat:'2' }}" inputmode="decimal" {% if not vista.coste_dia_provisional %}readonly{% endif %}>
+      </div>
+      <div class="col-auto small text-body-secondary">
+        = {{ vista.coste_hora|floatformat:"2" }} €/h × {{ vista.jornada|floatformat:"-2" }} h de jornada.
+        {% if vista.coste_dia_provisional %}<span class="badge text-bg-warning">provisional</span> Todavía no hay coste hora de la empresa: se usa el de la plantilla, que puedes cambiar. La mano de obra queda marcada para recalcularla con el coste hora.{% else %}Sale del coste hora de la empresa.{% endif %}
+      </div>
+      <div class="col-auto"><button name="recalcular" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-repeat"></i> Recalcular</button></div>
+    </div>
+  {% endif %}
+</div></div>
+
+{% if vista.errores %}
+  <div class="alert alert-danger"><strong>Errores ({{ vista.errores|length }}):</strong> corrígelos para poder importar.
+    <ul class="mb-0 small">{% for e in vista.errores %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<h2 class="h6">Partidas</h2>
+<div class="table-responsive">
+<table class="table table-sm align-middle bg-body">
+  <thead class="table-light"><tr>
+    <th>Importar</th><th>Hoja</th><th>Código</th><th>Unidad</th><th>Estado</th>
+    <th class="text-end">Medición</th><th class="text-end">MO / ud</th><th class="text-end">Rendimiento (ud/día)</th><th class="text-end">Horas / ud</th>
+    <th class="text-end">Materiales</th>{% if ve_importes %}<th class="text-end">Coste directo plantilla</th><th class="text-end">Precio en el banco</th>{% endif %}
+  </tr></thead>
+  <tbody>
+  {% for p in vista.partidas %}
+    <tr{% if p.errores and p.importar %} class="table-danger"{% endif %}>
+      <td><input class="form-check-input" type="checkbox" name="importar_{{ p.indice }}" aria-label="Importar {{ p.hoja.nombre }}" {% if p.importar %}checked{% endif %}></td>
+      <td>{{ p.hoja.nombre }}{% if not p.hoja.activa %} <span class="badge text-bg-secondary" title="Fuera de Hoja1-Hoja2 en la plantilla">biblioteca</span>{% endif %}</td>
+      <td><input class="form-control form-control-sm" name="codigo_{{ p.indice }}" value="{{ p.codigo }}" maxlength="40" aria-label="Código de {{ p.hoja.nombre }}" style="min-width: 7rem"></td>
+      <td><input class="form-control form-control-sm" name="unidad_{{ p.indice }}" value="{{ p.unidad }}" maxlength="20" aria-label="Unidad de {{ p.hoja.nombre }}" style="min-width: 4rem" title="Propuesta desde «{{ p.hoja.etiqueta_unidad|default:'—' }}»"></td>
+      <td>{% if p.estado == "nueva" %}<span class="badge text-bg-success">nueva</span>{% elif p.estado == "se actualiza" %}<span class="badge text-bg-primary">se actualiza {{ p.existente.codigo }}</span>{% elif p.estado == "sin cambios" %}<span class="badge text-bg-secondary">sin cambios</span>{% else %}<span class="badge text-bg-light">no se importa</span>{% endif %}</td>
+      <td class="cifra">{{ p.hoja.medicion|floatformat:"-3"|default:"—" }}</td>
+      <td class="cifra">{% if ve_importes %}{{ p.hoja.precio_mo|floatformat:"2"|default:"—" }}{% else %}<span class="text-body-secondary">(oculto)</span>{% endif %}</td>
+      <td class="cifra">{{ p.rendimiento_mo|floatformat:"4"|default:"—" }}</td>
+      <td class="cifra">{{ p.horas_mo|floatformat:"4"|default:"—" }}</td>
+      <td class="cifra">{{ p.hoja.materiales|length }}</td>
+      {% if ve_importes %}
+        <td class="cifra">{{ p.hoja.coste_directo_plantilla|floatformat:"2" }}</td>
+        <td class="cifra">{{ p.precio|floatformat:"2"|default:"—" }}</td>
+      {% endif %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="small text-body-secondary">Rendimiento = coste día / precio de mano de obra por unidad; horas por unidad = jornada / rendimiento. El precio en el banco no lleva gastos de empresa, beneficio ni desplazamiento. La unidad se propone desde la etiqueta de la medición de cada hoja: revísala.</p>
+
+{% if vista.uniones %}
+  <h2 class="h6 mt-3">Materiales con nombres casi iguales</h2>
+  <p class="small text-body-secondary mb-1">Si son el mismo material (una errata), elige el nombre que queda: se guardan como uno solo.</p>
+  <div class="row g-2 small">
+  {% for u in vista.uniones %}
+    <div class="col-12 col-md-8">
+      <label class="form-label mb-0" for="union_{{ forloop.counter }}">«{{ u.nombres.0 }}» y «{{ u.nombres.1 }}»</label>
+      <select class="form-select form-select-sm" name="union" id="union_{{ forloop.counter }}">
+        <option value="">Son materiales distintos</option>
+        {% for valor, nombre in u.opciones %}<option value="{{ valor }}"{% if valor == u.elegida %} selected{% endif %}>Son el mismo: «{{ nombre }}»</option>{% endfor %}
+      </select>
+    </div>
+  {% endfor %}
+  </div>
+{% endif %}
+
+{% if vista.lecciones %}
+  <div class="alert alert-info"><strong>Lo que la plantilla hace de otra forma:</strong>
+    <ul class="mb-0 small">{% for l in vista.lecciones %}<li>{{ l.texto }}</li>{% endfor %}</ul></div>
+{% endif %}
+{% if vista.resultado.parametros %}
+  <p class="small text-body-secondary">Parámetros generales de la plantilla (son del presupuesto; no se guardan en el banco):
+    {% for clave, par in vista.resultado.parametros.items %}{{ par.0 }}: {{ par.1|floatformat:"-2" }}{% if not forloop.last %} · {% endif %}{% endfor %}.</p>
+{% endif %}
+{% if vista.avisos %}
+  <div class="alert alert-warning"><strong>Avisos ({{ vista.avisos|length }}):</strong>
+    <ul class="mb-0 small">{% for a in vista.avisos|slice:":50" %}<li>{{ a }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<div class="d-flex gap-2">
+  {% if vista.a_importar and not vista.resultado.errores %}
+    <button name="confirmar" class="btn btn-primary"><i class="bi bi-check-lg"></i> Importar al banco propio</button>
+    <button name="recalcular" class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Recalcular</button>
+  {% endif %}
+  <button name="cancelar" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Cancelar</button>
+</div>
+</form>
+{% endblock %}

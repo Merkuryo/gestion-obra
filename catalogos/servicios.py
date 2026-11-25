@@ -12,6 +12,7 @@
 
 from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -20,7 +21,7 @@ from django.utils import timezone
 from importadores.bc3 import ResultadoBC3, leer_bc3
 
 from . import calculos
-from .models import Banco, Capitulo, LineaDescompuesto, Partida, Recurso
+from .models import ORIGEN_PLANTILLA, Banco, Capitulo, LineaDescompuesto, Partida, Recurso
 
 TIPOS_BC3 = {"1": Recurso.MANO_OBRA, "2": Recurso.MAQUINARIA, "3": Recurso.MATERIAL}
 LARGO = {"codigo": 40, "unidad": 20, "resumen": 255}
@@ -541,20 +542,13 @@ def _copiar_partida(partida, propio, actor, seccion, hechos, principal):
         if existente is not None:
             hechos[clave] = existente
             return existente
-    copia = Partida(
-        banco=propio,
-        seccion=seccion,
-        codigo=_codigo_libre(Partida, propio, partida.codigo),
-        unidad=partida.unidad,
-        resumen=partida.resumen,
-        texto=partida.texto,
-        precio=partida.precio,
-        fecha_precio=partida.fecha_precio,
-        auxiliar=not principal,
-        origen=origen,
-    )
-    _registrar(copia, actor, f"Copiada de {origen}")
-    hechos[clave] = copia
+    en_curso = hechos.setdefault("en_curso", set())
+    if partida.pk in en_curso:
+        raise ValidationError(f"El descompuesto de {partida.codigo} se incluye a sí mismo.")
+    en_curso.add(partida.pk)
+    # Primero los recursos y auxiliares: así la partida se da de alta ya con su precio y su
+    # historial empieza con un «Alta» (copiada de …), sin un «Cambio» de recálculo detrás.
+    lineas = []
     for linea in partida.lineas.select_related("recurso__banco", "auxiliar__banco"):
         if linea.recurso_id:
             recurso = _copiar_recurso(linea.recurso, propio, actor, hechos.setdefault("r", {}))
@@ -562,17 +556,45 @@ def _copiar_partida(partida, propio, actor, seccion, hechos, principal):
         else:
             recurso = None
             auxiliar = _copiar_partida(linea.auxiliar, propio, actor, None, hechos, False)
-        nueva = LineaDescompuesto(
-            partida=copia,
-            orden=linea.orden,
-            recurso=recurso,
-            auxiliar=auxiliar,
-            factor=linea.factor,
-            rendimiento=linea.rendimiento,  # los rendimientos se mantienen siempre
-            merma_pct=linea.merma_pct,
+        lineas.append(
+            LineaDescompuesto(
+                orden=linea.orden,
+                recurso=recurso,
+                auxiliar=auxiliar,
+                factor=linea.factor,
+                rendimiento=linea.rendimiento,  # los rendimientos se mantienen siempre
+                merma_pct=linea.merma_pct,
+            )
         )
-        _registrar(nueva, actor)
+    en_curso.discard(partida.pk)
+    precio, fecha = partida.precio, partida.fecha_precio
+    if lineas:
+        precio, fecha = _precio_lineas(lineas), date.today()
+    copia = Partida(
+        banco=propio,
+        seccion=seccion,
+        codigo=_codigo_libre(Partida, propio, partida.codigo),
+        unidad=partida.unidad,
+        resumen=partida.resumen,
+        texto=partida.texto,
+        precio=precio,
+        fecha_precio=fecha,
+        auxiliar=not principal,
+        origen=origen,
+    )
+    _registrar(copia, actor, f"Copiada de {origen}")
+    hechos[clave] = copia
+    for linea in lineas:
+        linea.partida = copia
+        _registrar(linea, actor)
     return copia
+
+
+def _precio_lineas(lineas) -> Decimal | None:
+    """Precio por unidad de unas líneas sin guardar (sus recursos y auxiliares ya tienen precio)."""
+    return calculos.precio_partida(
+        (ln.factor, ln.rendimiento, ln.merma_pct, ln.elemento.precio) for ln in lineas
+    )
 
 
 @transaction.atomic
@@ -619,3 +641,483 @@ def filas_descompuesto(partida: Partida, ve_importes: bool):
             )
         )
     return filas
+
+
+# ── Importación de la plantilla de cálculo al banco propio ─────────────────────
+#
+# Cada hoja de partida se convierte en una partida del banco propio con su descompuesto:
+# - materiales: un recurso por material (los nombres iguales sin tildes ni mayúsculas son el
+#   mismo; los parecidos se proponen para unir y el usuario confirma), con el consumo como
+#   rendimiento y la merma de la plantilla; quedan pendientes de enlazar con artículo y tarifa;
+# - fijaciones y transportes (€ por unidad): recursos de 1 € con el importe como rendimiento;
+# - mano de obra: el precio por unidad (F6) se convierte en rendimiento con el coste día
+#   (rendimiento = coste_día / F6) y entra en horas por unidad (jornada / rendimiento).
+#   El precio por unidad original queda en la partida como referencia.
+# No se importan los gastos de empresa (14 %), el beneficio, los márgenes, el desplazamiento
+# ni los resúmenes: son del presupuesto o son copias (lecciones de la plantilla).
+# Es idempotente: la misma hoja (por su nombre) actualiza la partida que ya se importó.
+
+CODIGO_MO, CODIGO_FIJACIONES, CODIGO_TRANSPORTES = "MO-OPERARIO", "FIJACIONES", "TRANSPORTES"
+UMBRAL_PARECIDOS = 0.9  # «Ejecto pizarra» / «Efecto pizarra» ≈ 0,93
+
+
+def origen_plantilla(hoja: str) -> str:
+    return f"{ORIGEN_PLANTILLA} · {hoja}"[:255]
+
+
+def jornada_horas() -> Decimal:
+    """Jornada de la empresa (8 h por defecto) para pasar del coste día al coste hora."""
+    from empresa.models import Empresa
+
+    empresa = Empresa.actual()
+    return empresa.jornada_horas if empresa else Decimal("8")
+
+
+@dataclass
+class LineaPrevista:
+    tipo: str  # material | fijaciones | transportes | mano_obra
+    clave: str  # recurso: código si ya existe, o nombre normalizado si es nuevo
+    resumen: str
+    unidad: str
+    rendimiento: Decimal
+    merma_pct: Decimal
+    precio: Decimal | None
+    recurso: Recurso | None = None  # el del banco, si ya existe
+
+    @property
+    def importe(self):
+        return calculos.importe_linea(Decimal("1"), self.rendimiento, self.merma_pct, self.precio)
+
+
+@dataclass
+class PartidaPrevista:
+    indice: int
+    hoja: object  # importadores.plantilla.HojaPartida
+    importar: bool
+    codigo: str
+    unidad: str
+    existente: Partida | None
+    lineas: list = field(default_factory=list)
+    rendimiento_mo: Decimal | None = None
+    horas_mo: Decimal | None = None
+    errores: list = field(default_factory=list)
+    cambia: bool = True
+
+    @property
+    def precio(self):
+        return calculos.precio_partida(
+            (Decimal("1"), ln.rendimiento, ln.merma_pct, ln.precio) for ln in self.lineas
+        )
+
+    @property
+    def estado(self):
+        if not self.importar:
+            return "no se importa"
+        if self.existente is None:
+            return "nueva"
+        return "se actualiza" if self.cambia else "sin cambios"
+
+
+@dataclass
+class UnionPropuesta:
+    """Dos materiales con nombres casi iguales. El usuario elige si son el mismo y con qué
+    nombre se queda (`opciones`: [(valor, nombre)]; `elegida`: el valor elegido o "")."""
+
+    clave: str
+    nombres: tuple
+    opciones: list
+    elegida: str
+
+
+@dataclass
+class VistaPreviaPlantilla:
+    resultado: object  # importadores.plantilla.ResultadoPlantilla
+    fichero: str
+    coste_dia: Decimal
+    coste_dia_provisional: bool
+    jornada: Decimal
+    partidas: list
+    uniones: list
+    avisos: list
+
+    @property
+    def coste_hora(self):
+        return calculos.coste_hora_de_dia(self.coste_dia, self.jornada)
+
+    @property
+    def lecciones(self):
+        from importadores.plantilla import Leccion
+
+        lecciones = list(self.resultado.lecciones)
+        if self.uniones:
+            lecciones.append(
+                Leccion(5, f"{len(self.uniones)} pareja(s) de materiales con nombres casi iguales "
+                        "(posibles erratas): elige cuáles son el mismo material.")
+            )  # fmt: skip
+        return sorted(lecciones, key=lambda leccion: leccion.numero)
+
+    @property
+    def errores(self):
+        return list(self.resultado.errores) + [
+            f"{p.hoja.nombre}: {e}" for p in self.partidas if p.importar for e in p.errores
+        ]
+
+    @property
+    def a_importar(self):
+        return [p for p in self.partidas if p.importar]
+
+    @property
+    def se_puede_importar(self):
+        return bool(self.a_importar) and not self.errores
+
+    @property
+    def recuento(self):
+        estados = [p.estado for p in self.partidas]
+        return {
+            "nuevas": estados.count("nueva"),
+            "actualizadas": estados.count("se actualiza"),
+            "sin_cambios": estados.count("sin cambios"),
+            "omitidas": estados.count("no se importa"),
+        }
+
+
+def _proponer_uniones(nombres_fichero, existentes):
+    """Parejas (a, b) de nombres normalizados casi iguales; al menos uno es del fichero."""
+    import difflib
+
+    candidatos = list(nombres_fichero) + [n for n in existentes if n not in nombres_fichero]
+    parejas = []
+    for i, a in enumerate(nombres_fichero):
+        for b in candidatos[i + 1 :]:
+            if a == b or (a in existentes and b in existentes):
+                continue
+            comparador = difflib.SequenceMatcher(None, a, b)
+            umbral = UMBRAL_PARECIDOS
+            if comparador.quick_ratio() >= umbral and comparador.ratio() >= umbral:
+                parejas.append((a, b))
+    return parejas
+
+
+def _destino(clave, uniones):
+    vistos = set()
+    while clave in uniones and clave not in vistos:
+        vistos.add(clave)
+        clave = uniones[clave]
+    return clave
+
+
+def _siguientes_codigos(modelo, banco, prefijo, usados):
+    """Generador de códigos libres «P-001», «P-002»… en el banco (y fuera de `usados`)."""
+    import re
+
+    patron = re.compile(rf"^{re.escape(prefijo)}(\d+)$")
+    tomados = set(modelo.objects.filter(banco=banco, codigo__startswith=prefijo)
+                  .values_list("codigo", flat=True)) | set(usados)  # fmt: skip
+    n = max((int(m.group(1)) for c in tomados if (m := patron.match(c))), default=0)
+    while True:
+        n += 1
+        codigo = f"{prefijo}{n:03d}"
+        if codigo not in tomados:
+            yield codigo
+
+
+def _coste_dia_para(resultado, pedido):
+    """(coste día, provisional). Con coste hora de la empresa, coste hora × jornada; sin él, el
+    que indique el usuario o, si no, el de la plantilla (provisional)."""
+    from importadores.plantilla import COSTE_DIA_PLANTILLA
+
+    jornada = jornada_horas()
+    coste_hora = coste_hora_actual()
+    if coste_hora is not None:
+        return calculos.coste_dia(coste_hora, jornada), False
+    if pedido is not None and pedido > 0:
+        return pedido, True
+    return resultado.coste_dia or COSTE_DIA_PLANTILLA, True
+
+
+def _lineas_iguales(partida, lineas):
+    actuales = [
+        (ln.recurso.codigo if ln.recurso_id else None, ln.factor, ln.rendimiento, ln.merma_pct)
+        for ln in partida.lineas.select_related("recurso")
+    ]
+    nuevas = [
+        (ln.recurso.codigo if ln.recurso else None, Decimal("1"), ln.rendimiento, ln.merma_pct)
+        for ln in lineas
+    ]
+    return actuales == nuevas
+
+
+def preparar_plantilla(datos: bytes, fichero: str, *, coste_dia=None, ajustes=None,
+                       uniones=()) -> VistaPreviaPlantilla:  # fmt: skip
+    """Lee la plantilla y dice qué se importaría al banco propio, sin guardar nada.
+
+    `coste_dia`: el que fija el usuario mientras no haya coste hora de la empresa.
+    `ajustes`: {índice de partida: {"importar": bool, "codigo": str, "unidad": str}}.
+    `uniones`: parejas de materiales que el usuario confirma como el mismo, «clave>destino»
+    (los valores de `UnionPropuesta.opciones`).
+    """
+    from importadores.plantilla import leer_plantilla, normalizar
+
+    resultado = leer_plantilla(datos)
+    propio = banco_propio()
+    ajustes = ajustes or {}
+    jornada = jornada_horas()
+    coste_dia, provisional = _coste_dia_para(resultado, coste_dia)
+    coste_hora = calculos.coste_hora_de_dia(coste_dia, jornada)
+    avisos = list(resultado.avisos)
+
+    # Materiales: nombres del fichero, los del banco y las uniones
+    materiales_banco = {}
+    for recurso in Recurso.objects.filter(banco=propio, tipo=Recurso.MATERIAL).order_by("pk"):
+        materiales_banco.setdefault(normalizar(recurso.resumen), recurso)
+    nombres = {}
+    for hoja in resultado.partidas:
+        for m in hoja.materiales:
+            nombres.setdefault(normalizar(m.nombre), m)
+    # Uniones elegidas: «a|b>destino» (el que queda). Con uno ya en el banco, queda ese.
+    elegidas = dict(u.partition(">")[::2] for u in uniones)
+    lista_uniones, mapa = [], {}
+    for a, b in _proponer_uniones(list(nombres), materiales_banco):
+        clave = f"{a}|{b}"
+
+        def visible(n):
+            return materiales_banco[n].resumen if n in materiales_banco else nombres[n].nombre
+
+        destinos = [n for n in (a, b) if n in materiales_banco] or [a, b]
+        opciones = [(f"{clave}>{d}", visible(d)) for d in destinos]
+        destino = elegidas.get(clave)
+        if destino not in destinos:
+            destino = None
+        lista_uniones.append(UnionPropuesta(
+            clave, (visible(a), visible(b)), opciones, f"{clave}>{destino}" if destino else ""
+        ))  # fmt: skip
+        if destino:
+            mapa[b if destino == a else a] = destino
+
+    precios_vistos = {}
+    for clave, m in nombres.items():
+        final = _destino(clave, mapa)
+        existente = materiales_banco.get(final)
+        neto = calculos.redondear_d4(m.precio_neto)[0]
+        if existente is not None and neto is not None and existente.precio != neto:
+            avisos.append(
+                f"«{m.nombre}» ya está en el banco ({existente.codigo}) con otro precio: se "
+                "mantiene el del banco."
+            )
+        anterior = precios_vistos.setdefault(final, neto)
+        if anterior != neto and existente is None:
+            avisos.append(f"«{m.nombre}» tiene precios distintos en varias hojas: vale el primero.")
+
+    recursos_fijos = {
+        r.codigo: r
+        for r in Recurso.objects.filter(
+            banco=propio, origen=ORIGEN_PLANTILLA,
+            codigo__in=[CODIGO_MO, CODIGO_FIJACIONES, CODIGO_TRANSPORTES],
+        )
+    }  # fmt: skip
+
+    # Partidas
+    existentes = {
+        p.origen: p
+        for p in Partida.objects.filter(banco=propio, origen__startswith=ORIGEN_PLANTILLA)
+    }
+    codigos_nuevos = _siguientes_codigos(Partida, propio, "P-", ())
+    partidas = []
+    for indice, hoja in enumerate(resultado.partidas):
+        ajuste = ajustes.get(indice, {})
+        existente = existentes.get(origen_plantilla(hoja.nombre))
+        codigo = (ajuste.get("codigo") or "").strip()
+        if not codigo:
+            codigo = existente.codigo if existente else next(codigos_nuevos)
+        unidad = (ajuste.get("unidad") or "").strip()
+        if not unidad:
+            unidad = existente.unidad if existente and existente.unidad else hoja.unidad
+        prevista = PartidaPrevista(
+            indice, hoja, ajuste.get("importar", True), codigo, unidad, existente
+        )
+        for m in hoja.materiales:
+            final = _destino(normalizar(m.nombre), mapa)
+            recurso = materiales_banco.get(final)
+            base = nombres.get(final)
+            prevista.lineas.append(
+                LineaPrevista(
+                    "material", recurso.codigo if recurso else final,
+                    recurso.resumen if recurso else (base.nombre if base else m.nombre),
+                    recurso.unidad if recurso else "",
+                    calculos.redondear_d4(m.consumo)[0], m.merma_pct,
+                    recurso.precio if recurso else precios_vistos.get(final), recurso,
+                )
+            )  # fmt: skip
+        for tipo, codigo_fijo, resumen, importe in (
+            ("fijaciones", CODIGO_FIJACIONES, "Fijaciones", hoja.fijaciones),
+            ("transportes", CODIGO_TRANSPORTES, "Transportes de material", hoja.transportes),
+        ):
+            if importe:
+                prevista.lineas.append(
+                    LineaPrevista(tipo, codigo_fijo, resumen, "€",
+                                  calculos.redondear_d4(importe)[0], Decimal("0"), Decimal("1"),
+                                  recursos_fijos.get(codigo_fijo))
+                )  # fmt: skip
+        if hoja.precio_mo:
+            prevista.rendimiento_mo = calculos.rendimiento_mo(coste_dia, hoja.precio_mo)
+            prevista.horas_mo = calculos.horas_por_unidad(jornada, coste_dia, hoja.precio_mo)
+            prevista.lineas.append(
+                LineaPrevista("mano_obra", CODIGO_MO, "Mano de obra (operario)", "h",
+                              prevista.horas_mo, Decimal("0"), coste_hora,
+                              recursos_fijos.get(CODIGO_MO))
+            )  # fmt: skip
+        partidas.append(prevista)
+
+    # Comprobaciones de lo que se va a importar
+    otros = dict(Partida.objects.filter(banco=propio).values_list("codigo", "pk"))
+    usados = {}
+    for p in partidas:
+        if not p.importar:
+            continue
+        if len(p.codigo) > LARGO["codigo"]:
+            p.errores.append(f"el código pasa de {LARGO['codigo']} caracteres.")
+        if p.codigo in usados:
+            p.errores.append(f"el código {p.codigo} se repite en «{usados[p.codigo]}».")
+        usados.setdefault(p.codigo, p.hoja.nombre)
+        dueno = otros.get(p.codigo)
+        if dueno is not None and (p.existente is None or dueno != p.existente.pk):
+            p.errores.append(f"el código {p.codigo} ya es de otra partida del banco propio.")
+        if not p.unidad or len(p.unidad) > LARGO["unidad"]:
+            p.errores.append("falta la unidad (o pasa de 20 caracteres).")
+        if p.existente is not None:
+            e = p.existente
+            mo_ref = calculos.redondear_d4(p.hoja.precio_mo)[0]
+            p.cambia = (
+                (e.codigo, e.unidad, e.resumen, e.precio_mo_referencia)
+                != (p.codigo, p.unidad, p.hoja.nombre[:255], mo_ref)
+                or any(ln.recurso is None for ln in p.lineas)
+                or not _lineas_iguales(e, p.lineas)
+                or (recursos_fijos.get(CODIGO_MO) and p.horas_mo
+                    and recursos_fijos[CODIGO_MO].precio != coste_hora)
+            )  # fmt: skip
+
+    return VistaPreviaPlantilla(
+        resultado, fichero, coste_dia, provisional, jornada, partidas, lista_uniones, avisos
+    )
+
+
+@dataclass
+class ResumenPlantilla:
+    creadas: list = field(default_factory=list)
+    actualizadas: list = field(default_factory=list)
+    sin_cambios: list = field(default_factory=list)
+    recursos_creados: int = 0
+
+
+def _recurso_plantilla(propio, codigo, actor, motivo, **valores):
+    recurso = Recurso.objects.filter(banco=propio, origen=ORIGEN_PLANTILLA, codigo=codigo).first()
+    if recurso is None:
+        recurso = Recurso(banco=propio, codigo=_codigo_libre(Recurso, propio, codigo),
+                          origen=ORIGEN_PLANTILLA, **valores)  # fmt: skip
+        _registrar(recurso, actor, motivo)
+        return recurso, True
+    if recurso.precio != valores["precio"] or recurso.pendiente != valores.get("pendiente", ""):
+        recurso.precio = valores["precio"]
+        recurso.pendiente = valores.get("pendiente", "")
+        recurso.fecha_precio = date.today()
+        guardar_recurso(recurso, actor)
+    return recurso, False
+
+
+@transaction.atomic
+def importar_plantilla(datos: bytes, fichero: str, actor, *, coste_dia=None, ajustes=None,
+                       uniones=(), seccion=None) -> ResumenPlantilla:  # fmt: skip
+    """Importa las hojas de partida de la plantilla al banco propio (ver `preparar_plantilla`).
+    Las partidas nuevas reciben `seccion`; las que ya estaban conservan la suya."""
+    vista = preparar_plantilla(datos, fichero, coste_dia=coste_dia, ajustes=ajustes,
+                               uniones=uniones)  # fmt: skip
+    if not vista.se_puede_importar:
+        raise ValidationError(vista.errores or ["No hay partidas que importar."])
+    propio = banco_propio()
+    motivo = f"Importado de la plantilla {fichero}"[:100]
+    resumen = ResumenPlantilla()
+    hoy = date.today()
+
+    fijos = {}
+    necesarios = {ln.tipo for p in vista.a_importar for ln in p.lineas}
+    if "mano_obra" in necesarios:
+        fijos["mano_obra"], nuevo = _recurso_plantilla(
+            propio, CODIGO_MO, actor, motivo, tipo=Recurso.MANO_OBRA, unidad="h",
+            resumen="Mano de obra (operario)", precio=vista.coste_hora, fecha_precio=hoy,
+            pendiente=Recurso.PENDIENTE_COSTE_HORA if vista.coste_dia_provisional else "",
+        )  # fmt: skip
+        resumen.recursos_creados += nuevo
+    for tipo, codigo, texto in (
+        ("fijaciones", CODIGO_FIJACIONES, "Fijaciones"),
+        ("transportes", CODIGO_TRANSPORTES, "Transportes de material"),
+    ):
+        if tipo in necesarios:
+            fijos[tipo], nuevo = _recurso_plantilla(
+                propio, codigo, actor, motivo, tipo=Recurso.OTRO, unidad="€", resumen=texto,
+                precio=Decimal("1"), fecha_precio=hoy,
+            )  # fmt: skip
+            resumen.recursos_creados += nuevo
+
+    materiales = {}
+    codigos_material = _siguientes_codigos(Recurso, propio, "M-", ())
+    for p in vista.a_importar:
+        for ln in p.lineas:
+            if ln.tipo == "material":
+                if ln.recurso is None and ln.clave not in materiales:
+                    nuevo = Recurso(
+                        banco=propio, codigo=next(codigos_material), tipo=Recurso.MATERIAL,
+                        resumen=ln.resumen[: LARGO["resumen"]], precio=ln.precio,
+                        fecha_precio=hoy, origen=ORIGEN_PLANTILLA,
+                        pendiente=Recurso.PENDIENTE_TARIFA,
+                    )  # fmt: skip
+                    _registrar(nuevo, actor, motivo)
+                    materiales[ln.clave] = nuevo
+                    resumen.recursos_creados += 1
+                ln.recurso = ln.recurso or materiales[ln.clave]
+            else:
+                ln.recurso = fijos[ln.tipo]
+
+    for p in vista.a_importar:
+        lineas = [
+            LineaDescompuesto(orden=n, recurso=ln.recurso, factor=Decimal("1"),
+                              rendimiento=ln.rendimiento, merma_pct=ln.merma_pct)
+            for n, ln in enumerate(p.lineas)
+        ]  # fmt: skip
+        mo_ref = calculos.redondear_d4(p.hoja.precio_mo)[0]
+        partida = p.existente
+        if partida is None:
+            partida = Partida(
+                banco=propio, seccion=seccion, codigo=p.codigo, unidad=p.unidad,
+                resumen=p.hoja.nombre[: LARGO["resumen"]], precio=_precio_lineas(lineas),
+                fecha_precio=hoy, origen=origen_plantilla(p.hoja.nombre),
+                precio_mo_referencia=mo_ref,
+            )  # fmt: skip
+            _registrar(partida, actor, motivo)
+            for linea in lineas:
+                linea.partida = partida
+                _registrar(linea, actor)
+            resumen.creadas.append(partida)
+            continue
+        if not p.cambia:
+            resumen.sin_cambios.append(partida)
+            continue
+        campos = ("codigo", "unidad", "resumen", "precio_mo_referencia", "seccion_id", "precio")
+        antes = [getattr(partida, c) for c in campos]
+        partida.codigo, partida.unidad = p.codigo, p.unidad
+        partida.resumen, partida.precio_mo_referencia = p.hoja.nombre[: LARGO["resumen"]], mo_ref
+        if seccion is not None and partida.seccion_id is None:
+            partida.seccion = seccion
+        if not _lineas_iguales(partida, lineas):
+            for vieja in partida.lineas.all():
+                vieja.delete()
+            for linea in lineas:
+                linea.partida = partida
+                _registrar(linea, actor)
+        nuevo_precio = _precio_lineas(lineas)
+        if nuevo_precio != partida.precio:
+            partida.precio, partida.fecha_precio = nuevo_precio, hoy
+        if antes != [getattr(partida, c) for c in campos]:
+            _registrar(partida, actor, motivo)
+        recalcular_dependientes([partida], actor)
+        resumen.actualizadas.append(partida)
+    return resumen

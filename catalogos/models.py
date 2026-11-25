@@ -18,6 +18,8 @@ from simple_history.models import HistoricalRecords
 
 from core.models import ModeloAuditado
 
+ORIGEN_PLANTILLA = "Plantilla de cálculo"
+
 
 def precio_d4(verbose="precio"):
     return models.DecimalField(verbose, max_digits=12, decimal_places=4, null=True, blank=True)
@@ -159,10 +161,13 @@ class Partida(ModeloAuditado):
     origen = models.CharField(
         max_length=255, blank=True, help_text="Banco y código de donde se copió."
     )
+    # Partidas importadas de la plantilla de cálculo: el precio de mano de obra por unidad que
+    # traía, como referencia (en el descompuesto va convertido en horas con el coste día).
+    precio_mo_referencia = precio_d4("precio de mano de obra por unidad de origen")
 
     history = HistoricalRecords()
     parte_permisos = "banco"
-    campos_importe = ("precio",)
+    campos_importe = ("precio", "precio_mo_referencia")
 
     class Meta:
         verbose_name = "partida"
@@ -174,6 +179,10 @@ class Partida(ModeloAuditado):
 
     def __str__(self):
         return f"{self.codigo} {self.resumen}"
+
+    @property
+    def de_plantilla(self):
+        return self.origen.startswith(ORIGEN_PLANTILLA)
 
     def historial_relacionado(self):
         from core.historial import Relacionado

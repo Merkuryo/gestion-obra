@@ -21,8 +21,8 @@
           <td class="cifra">{{ f.linea.merma_pct|floatformat:"-2" }}</td>
           <td class="cifra">{{ f.cantidad|floatformat:"4" }}</td>
           {% if ve_importes %}
-            <td class="cifra">{{ f.precio|floatformat:"4g"|default:"—" }}</td>
-            <td class="cifra">{{ f.importe|floatformat:"4g"|default:"—" }}</td>
+            <td class="cifra">{{ f.precio|floatformat:"2g"|default:"—" }}</td>
+            <td class="cifra">{{ f.importe|floatformat:"2g"|default:"—" }}</td>
           {% else %}
             <td class="text-body-secondary">(oculto)</td><td class="text-body-secondary">(oculto)</td>
           {% endif %}

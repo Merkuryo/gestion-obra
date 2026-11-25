@@ -33,3 +33,21 @@ def test_redondeo_a_cuatro_decimales():
     assert redondear_d4(D("0.00125")) == (D("0.0013"), True)
     assert redondear_d4(D("12.4")) == (D("12.4000"), False)
     assert redondear_d4(None) == (None, False)
+
+
+# ── Mano de obra: doble entrada precio por unidad ↔ rendimiento ────────────────
+
+
+def test_doble_entrada_de_la_mano_de_obra_con_el_coste_dia_de_la_plantilla():
+    from catalogos import calculos
+
+    # 189 € al día y 2,10 €/m² de mano de obra → 90 m² por día-operario
+    assert calculos.rendimiento_mo(D("189"), D("2.10")) == D("90.0000")
+    assert calculos.precio_mo_ud(D("189"), D("90")) == D("2.1000")
+    # En el descompuesto: 8 h / 90 m² = 0,0889 h/m², a 189 / 8 = 23,625 €/h
+    assert calculos.horas_por_unidad(D("8"), D("189"), D("2.10")) == D("0.0889")
+    assert calculos.coste_hora_de_dia(D("189"), D("8")) == D("23.6250")
+    assert calculos.coste_dia(D("23.625"), D("8")) == D("189.00")
+    # 12,90 €/m²: 14,6512 m²/día y 0,5460 h/m²
+    assert calculos.rendimiento_mo(D("189"), D("12.90")) == D("14.6512")
+    assert calculos.horas_por_unidad(D("8"), D("189"), D("12.90")) == D("0.5460")

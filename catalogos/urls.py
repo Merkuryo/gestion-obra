@@ -24,4 +24,5 @@ urlpatterns = [
         name="partida_copiar",
     ),
     path("banco/importar/", views.ImportarBC3.as_view(), name="importar_bc3"),
+    path("banco/importar/plantilla/", views.ImportarPlantilla.as_view(), name="importar_plantilla"),
 ]

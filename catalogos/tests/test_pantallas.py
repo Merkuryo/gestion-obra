@@ -79,7 +79,7 @@ def test_sin_ver_importes_los_precios_salen_ocultos(cliente_sin_importes, empres
                 f"/banco/partidas/{copia.pk}/"]:  # fmt: skip
         html = cliente_sin_importes.get(url).content.decode()
         assert "(oculto)" in html, url
-        # Precios tal como se pintan (fichas con 4 decimales, listas con 2); el texto largo de
+        # Precios tal como se pintan (y como se guardan); el texto largo de
         # la partida habla de «12,40 €/m²» y eso sí se ve: es descripción, no un campo de precio
         for precio in ("12,4000", "22,5000", "22,50", "7,4375", "7,44"):
             assert precio not in html, (url, precio)
@@ -280,3 +280,156 @@ def test_recurso_con_precio_nuevo_deja_de_estar_pendiente(cliente_con_rol, empre
     assert mo3.pendiente == "" and mo3.precio == D("25.0000")
     assert copia.precio == D("4.3530")  # 25×0,12 + 4,10×1,1×0,3
     assert LineaDescompuesto.objects.filter(partida=copia).count() == 2
+
+
+# ── Pantalla: precios con 2 decimales y aviso de partida sin sección ───────────
+
+
+def test_precios_con_2_decimales_y_rendimientos_con_4(cliente_con_rol, empresa, externo, gerente):
+    copia = servicios.copiar_al_banco_propio(
+        Partida.objects.get(banco=externo, codigo="ALB010"), gerente
+    )
+    cliente = cliente_con_rol("Gerencia")
+    html = cliente.get(f"/banco/partidas/{copia.pk}/").content.decode()
+    assert "7,44</strong> / m2" in html and "7,4375" not in html  # precio 7,4375 guardado
+    assert "22,50" in html and "22,5000" not in html  # precio del recurso en el descompuesto
+    assert "0,2500" in html  # rendimiento con 4 decimales
+    externa = Partida.objects.get(banco=externo, codigo="ALB010")
+    html = cliente.get(f"/banco/externos/{externo.pk}/partidas/{externa.pk}/").content.decode()
+    assert "12,40</span>" in html and "12,4000" not in html
+
+
+def test_historial_con_precios_a_2_decimales(cliente_con_rol, empresa, externo, gerente):
+    copia = servicios.copiar_al_banco_propio(
+        Partida.objects.get(banco=externo, codigo="ALB010"), gerente
+    )
+    html = cliente_con_rol("Gerencia").get(f"/banco/partidas/{copia.pk}/").content.decode()
+    historial = html[html.index("Historial") :]
+    assert "Alta" in historial and "Copiada de Reforma de baño de ejemplo" in historial
+    assert "7,44" in historial and "7,4375" not in historial
+
+
+def test_campo_precio_del_recurso_sin_ceros_de_mas(cliente_con_rol, empresa, recursos_propios):
+    oficial, _ = recursos_propios
+    html = cliente_con_rol("Gerencia").get(f"/banco/recursos/{oficial.pk}/").content.decode()
+    assert 'value="20.00"' in html and "20.0000" not in html
+
+
+def test_aviso_en_la_ficha_si_la_partida_no_tiene_seccion(cliente_con_rol, empresa, externo,
+                                                          gerente):  # fmt: skip
+    externa = Partida.objects.get(banco=externo, codigo="ALB010")
+    sin = servicios.copiar_al_banco_propio(externa, gerente)  # copiada con «Todas»
+    con = servicios.copiar_al_banco_propio(
+        externa, gerente, seccion=Seccion.objects.create(codigo="AL", nombre="Albañilería")
+    )
+    cliente = cliente_con_rol("Gerencia")
+    aviso = "Esta partida no tiene sección"
+    assert aviso in cliente.get(f"/banco/partidas/{sin.pk}/").content.decode()
+    assert aviso not in cliente.get(f"/banco/partidas/{con.pk}/").content.decode()
+
+
+# ── Importar la plantilla de cálculo por pantalla ──────────────────────────────
+
+
+def _subir_plantilla(cliente, datos, nombre="calculo.xlsm"):
+    return cliente.post("/banco/importar/plantilla/",
+                        {"fichero": SimpleUploadedFile(nombre, datos)})  # fmt: skip
+
+
+def _elecciones(**extra):
+    datos = {"num_partidas": "4", "coste_dia": "189,00"}
+    for i in range(4):
+        datos[f"importar_{i}"] = "on"
+    return datos | extra
+
+
+def test_plantilla_con_vista_previa_recalculo_y_confirmacion(cliente_con_rol, empresa,
+                                                             media_temporal):  # fmt: skip
+    from importadores.tests.plantilla_muestra import crear_plantilla
+
+    cliente = cliente_con_rol("Oficina técnica")
+    html = _subir_plantilla(cliente, crear_plantilla()).content.decode()
+    assert "Resumen antes de importar" in html and "PINTURA INTERIOR" in html
+    assert "provisional" in html and 'value="189,00"' in html
+    assert "90,0000" in html and "0,0889" in html  # rendimiento y horas por unidad
+    assert "1.700,00 €" in html  # lección del resumen duplicado
+    assert "Ejecto pizarra" in html and "Son el mismo" in html
+    assert not Partida.objects.filter(banco=servicios.banco_propio()).exists()
+
+    # Coste día cambiado y una hoja fuera: se recalcula sin guardar
+    datos = _elecciones(coste_dia="200", recalcular="")
+    del datos["importar_3"]
+    html = cliente.post("/banco/importar/plantilla/", datos).content.decode()
+    assert 'value="200,00"' in html and "95,2381" in html and "no se importa" in html
+    assert not Partida.objects.filter(banco=servicios.banco_propio()).exists()
+
+    datos["confirmar"] = ""
+    del datos["recalcular"]
+    respuesta = cliente.post("/banco/importar/plantilla/", datos)
+    assert respuesta.status_code == 302 and respuesta.url == "/banco/"
+    assert Partida.objects.filter(banco=servicios.banco_propio()).count() == 3
+    assert Recurso.objects.get(codigo="MO-OPERARIO").precio == D("25.0000")
+    assert list((media_temporal / "importaciones" / "plantillas").iterdir()) == []
+
+    ficha = Partida.objects.get(resumen="PINTURA INTERIOR")
+    html = cliente.get(f"/banco/partidas/{ficha.pk}/").content.decode()
+    assert "Importada de la plantilla de cálculo · pintura interior" in html
+    assert "Mano de obra en la plantilla" in html and "2,10" in html
+    assert "Esta partida no tiene sección" in html
+
+
+def test_plantilla_con_codigo_repetido_vuelve_a_la_vista_previa(cliente_con_rol, empresa,
+                                                                media_temporal):  # fmt: skip
+    from importadores.tests.plantilla_muestra import crear_plantilla
+
+    cliente = cliente_con_rol("Gerencia")
+    _subir_plantilla(cliente, crear_plantilla())
+    datos = _elecciones(codigo_0="X", codigo_1="X", confirmar="")
+    respuesta = cliente.post("/banco/importar/plantilla/", datos)
+    assert respuesta.status_code == 200 and "se repite" in respuesta.content.decode()
+    assert not Partida.objects.filter(banco=servicios.banco_propio()).exists()
+
+
+def test_plantilla_cancelar_y_extension(cliente_con_rol, empresa, media_temporal):
+    from importadores.tests.plantilla_muestra import crear_plantilla
+
+    cliente = cliente_con_rol("Gerencia")
+    _subir_plantilla(cliente, crear_plantilla())
+    respuesta = cliente.post("/banco/importar/plantilla/", {"cancelar": ""})
+    assert respuesta.status_code == 302
+    assert list((media_temporal / "importaciones" / "plantillas").iterdir()) == []
+    html = _subir_plantilla(cliente, b"x", "banco.bc3").content.decode()
+    assert ".xlsx o .xlsm" in html
+    respuesta = cliente.post("/banco/importar/plantilla/", _elecciones(confirmar=""))
+    assert respuesta.status_code == 302 and respuesta.url == "/banco/importar/plantilla/"
+
+
+@pytest.mark.parametrize("rol, codigo", [("Gerencia", 200), ("Oficina técnica", 200),
+                                         ("Jefe de obra", 403), ("Administración", 403),
+                                         ("Encargado", 403)])  # fmt: skip
+def test_importar_plantilla_solo_quien_edita_el_banco(cliente_con_rol, empresa, rol, codigo):
+    cliente = cliente_con_rol(rol)
+    assert cliente.get("/banco/importar/plantilla/").status_code == codigo
+    assert cliente.post("/banco/importar/plantilla/", {"cancelar": ""}).status_code in (
+        (302,) if codigo == 200 else (403,)
+    )
+
+
+def test_plantilla_sin_ver_importes_oculta_precios_y_coste_dia(client, django_user_model,
+                                                               gerente, empresa,
+                                                               media_temporal):  # fmt: skip
+    from importadores.tests.plantilla_muestra import crear_plantilla
+
+    rol = servicios_core.guardar_rol(
+        Rol(nombre="Edita sin importes"),
+        {"banco": {"ver": True, "crear": True, "editar": True}}, None, gerente,
+    )  # fmt: skip
+    usuario = django_user_model.objects.create_user("sin_importes", password="x")
+    usuario.groups.add(rol.grupo)
+    client.force_login(usuario)
+    html = _subir_plantilla(client, crear_plantilla()).content.decode()
+    assert "PINTURA INTERIOR" in html and 'name="coste_dia"' not in html
+    assert "Precio en el banco" not in html and "(oculto)" in html
+    # El coste día no se puede cambiar sin verlo: se usa el de la plantilla
+    client.post("/banco/importar/plantilla/", _elecciones(coste_dia="500", confirmar=""))
+    assert Recurso.objects.get(codigo="MO-OPERARIO").precio == D("23.6250")

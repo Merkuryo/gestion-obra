@@ -19,6 +19,7 @@ from core.secciones import seccion_elegida
 from . import servicios
 from .formularios import (
     ImportarBC3Form,
+    ImportarPlantillaForm,
     LineasFormSet,
     PartidaForm,
     RecursoForm,
@@ -28,6 +29,7 @@ from .models import Banco, Partida, Recurso
 
 MODULO = "banco"
 SESION_BC3 = "importacion_bc3"
+SESION_PLANTILLA = "importacion_plantilla"
 MIGAS = [("Banco de precios", "/banco/")]
 
 
@@ -298,8 +300,8 @@ class CopiarPartida(ConPermiso, View):
 # ── Importación de BC3 ─────────────────────────────────────────────────────────
 
 
-def _borrar_subida(request):
-    datos = request.session.pop(SESION_BC3, None)
+def _borrar_subida(request, clave=SESION_BC3):
+    datos = request.session.pop(clave, None)
     if datos and default_storage.exists(datos["ruta"]):
         default_storage.delete(datos["ruta"])
 
@@ -361,3 +363,119 @@ class ImportarBC3(ConPermiso, View):
             f"nuevos, {a['recursos']} actualizados y {b['recursos']} quitados.",
         )
         return redirect("catalogos:banco", pk=resumen.banco.pk)
+
+
+# ── Importación de la plantilla de cálculo ─────────────────────────────────────
+
+
+def _decimal(texto):
+    from decimal import Decimal, InvalidOperation
+
+    texto = (texto or "").strip().replace("€", "").replace(" ", "")
+    if "," in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    try:
+        return Decimal(texto) if texto else None
+    except InvalidOperation:
+        return None
+
+
+def _elecciones_plantilla(request, ve_importes):
+    """Lo que el usuario ha cambiado en la vista previa: coste día, partidas y uniones."""
+    post = request.POST
+    try:
+        total = int(post.get("num_partidas", 0))
+    except ValueError:
+        total = 0
+    ajustes = {
+        i: {
+            "importar": f"importar_{i}" in post,
+            "codigo": post.get(f"codigo_{i}", ""),
+            "unidad": post.get(f"unidad_{i}", ""),
+        }
+        for i in range(total)
+    }
+    # Sin «ver importes» no se ve el coste día, así que tampoco se puede cambiar
+    coste_dia = _decimal(post.get("coste_dia")) if ve_importes else None
+    return {"coste_dia": coste_dia, "ajustes": ajustes, "uniones": post.getlist("union")}
+
+
+class ImportarPlantilla(ConPermiso, View):
+    """Subida de la plantilla → vista previa editable (sin guardar) → confirmación."""
+
+    modulo = MODULO
+    migas = [*MIGAS, ("Importar plantilla", "")]
+
+    def get(self, request):
+        if not puede_editar(request.user, MODULO):
+            raise PermissionDenied
+        contexto = {"form": ImportarPlantillaForm(), "migas": self.migas}
+        return render(request, "catalogos/importar_plantilla.html", contexto)
+
+    def _pintar_vista(self, request, vista):
+        contexto = {
+            "vista": vista,
+            "ve_importes": _ve_importes(request.user),
+            "seccion": seccion_elegida(request.user),
+            "migas": self.migas,
+        }
+        return render(request, "catalogos/vista_previa_plantilla.html", contexto)
+
+    def _subida(self, request):
+        datos = request.session.get(SESION_PLANTILLA)
+        if not datos or not default_storage.exists(datos["ruta"]):
+            return None, None
+        with default_storage.open(datos["ruta"], "rb") as f:
+            return f.read(), datos["fichero"]
+
+    def post(self, request):
+        if not puede_editar(request.user, MODULO):
+            raise PermissionDenied
+        if "cancelar" in request.POST:
+            _borrar_subida(request, SESION_PLANTILLA)
+            messages.info(request, "Importación cancelada; no se ha guardado nada.")
+            return redirect("catalogos:importar_plantilla")
+        if "confirmar" in request.POST or "recalcular" in request.POST:
+            contenido, fichero = self._subida(request)
+            if contenido is None:
+                messages.warning(request, "La subida ha caducado: vuelve a elegir el fichero.")
+                return redirect("catalogos:importar_plantilla")
+            elecciones = _elecciones_plantilla(request, _ve_importes(request.user))
+            if "recalcular" in request.POST:
+                vista = servicios.preparar_plantilla(contenido, fichero, **elecciones)
+                return self._pintar_vista(request, vista)
+            return self._confirmar(request, contenido, fichero, elecciones)
+
+        form = ImportarPlantillaForm(request.POST, request.FILES)
+        if not form.is_valid():
+            contexto = {"form": form, "migas": self.migas}
+            return render(request, "catalogos/importar_plantilla.html", contexto)
+        fichero = form.cleaned_data["fichero"]
+        contenido = fichero.read()
+        _borrar_subida(request, SESION_PLANTILLA)
+        extension = fichero.name.rsplit(".", 1)[-1].lower()
+        ruta = default_storage.save(
+            f"importaciones/plantillas/{uuid.uuid4().hex}.{extension}", ContentFile(contenido)
+        )
+        request.session[SESION_PLANTILLA] = {"ruta": ruta, "fichero": fichero.name}
+        return self._pintar_vista(request, servicios.preparar_plantilla(contenido, fichero.name))
+
+    def _confirmar(self, request, contenido, fichero, elecciones):
+        try:
+            resumen = servicios.importar_plantilla(
+                contenido, fichero, request.user, seccion=seccion_elegida(request.user),
+                **elecciones,
+            )  # fmt: skip
+        except ValidationError:
+            # Algo no cuadra (p. ej. un código repetido): se vuelve a la vista previa con el error
+            vista = servicios.preparar_plantilla(contenido, fichero, **elecciones)
+            return self._pintar_vista(request, vista)
+        _borrar_subida(request, SESION_PLANTILLA)
+        messages.success(
+            request,
+            f"Plantilla importada: {len(resumen.creadas)} partidas nuevas, "
+            f"{len(resumen.actualizadas)} actualizadas y {len(resumen.sin_cambios)} sin cambios; "
+            f"{resumen.recursos_creados} recursos nuevos. Revisa la mano de obra y los materiales "
+            "marcados como pendientes.",
+        )
+        return redirect("catalogos:partidas")

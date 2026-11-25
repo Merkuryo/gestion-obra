@@ -5,7 +5,7 @@ ficha tenga historial, su modelo necesita `history = HistoricalRecords()` y `par
 (la parte de core/permisos.PARTES que hay que poder ver). Opcionalmente:
 
 - `campos_importe`: importes y costes (coste hora y similares), que solo ve quien tiene
-  «ver importes» en esa parte;
+  «ver importes» en esa parte y que se muestran con 2 decimales;
 - `campos_margen`: márgenes y beneficio, que solo ve quien tiene «ver márgenes» en esa parte;
 - `campos_nominas`: campos que solo ve quien tiene el permiso de nóminas;
 - `campos_internos`: campos técnicos que no se muestran (p. ej. el grupo de Django de un rol);
@@ -27,7 +27,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from urllib.parse import urlencode
 
 from django.db import models
@@ -148,6 +148,10 @@ def _texto(campo, valor):
     if isinstance(valor, date):
         return formats.date_format(valor, "d/m/Y")
     if isinstance(valor, (Decimal, int, float)):
+        # Importes y precios en pantalla con 2 decimales, redondeados (se guardan con los que
+        # tengan; number_format solo cortaría)
+        if campo.name in getattr(campo.model, "campos_importe", ()) and isinstance(valor, Decimal):
+            valor = valor.quantize(Decimal("0.01"), ROUND_HALF_UP)
         return formats.number_format(valor, use_l10n=True, force_grouping=True)
     return str(valor)
 

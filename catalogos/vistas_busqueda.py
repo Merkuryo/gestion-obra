@@ -118,6 +118,7 @@ class SelectorResultados(ConPermiso, View):
         # El campo se llama «<nombre>_buscar» para no chocar con el formulario que lo contiene
         filtros.q = (request.GET.get(f"{nombre}_buscar") or filtros.q).strip()[:200]
         filtros.seccion = filtros.seccion or busqueda.TODAS
+        filtros.seccion_primero = True
         resultado = busqueda.buscar(request.user, filtros, por_pagina=POR_PAGINA_SELECTOR)
         contexto = contexto_selector(nombre, unidad_destino) | {
             "resultado": resultado,

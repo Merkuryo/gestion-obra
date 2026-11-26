@@ -314,3 +314,27 @@ def test_selector_en_un_formulario_de_otra_pantalla(bancos, cliente_con_rol):
     assert respuesta.content.decode() == "Elegida: P-003 (misma unidad)"
     respuesta = cliente.post("/prueba/selector/", {"partida": "999999"})
     assert respuesta.status_code == 400 and "ya no existe" in respuesta.content.decode()
+
+
+def test_selector_primero_la_seccion_de_trabajo(bancos, secciones, usuario_con_rol, client):
+    pt, alb = secciones
+    propio = bancos[0]
+    # Dos partidas iguales para la búsqueda, una de cada sección
+    Partida.objects.bulk_create([
+        Partida(banco=propio, codigo="Q-PT", unidad="m²", resumen="Rejilla metálica", seccion=pt),
+        Partida(banco=propio, codigo="Q-ALB", unidad="m²", resumen="Rejilla metálica", seccion=alb),
+    ])  # fmt: skip
+    usuario = usuario_con_rol("Oficina técnica")
+    servicios_core.elegir_seccion(usuario, alb)
+    client.force_login(usuario)
+    datos = {"nombre": "partida", "partida_buscar": "rejilla"}
+    html = client.get("/banco/selector/", datos).content.decode()
+    # Busca en todas las secciones, pero la de trabajo va primero
+    assert html.index("Q-ALB") < html.index("Q-PT")
+    servicios_core.elegir_seccion(usuario, pt)
+    html = client.get("/banco/selector/", datos).content.decode()
+    assert html.index("Q-PT") < html.index("Q-ALB")
+    # La pantalla de búsqueda con «Todas» no cambia el orden (por código)
+    usuario.refresh_from_db()
+    resultado = _buscar(usuario, "rejilla")
+    assert _codigos(resultado) == ["Q-ALB", "Q-PT"]

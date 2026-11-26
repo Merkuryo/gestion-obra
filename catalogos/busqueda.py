@@ -77,6 +77,9 @@ class Filtros:
     precio_max: Decimal | None = None
     auxiliares: bool = False
     pagina: int = 1
+    # A igualdad de relevancia, primero las de la sección de trabajo (el selector busca en
+    # todas las secciones, pero propone antes las de la suya)
+    seccion_primero: bool = False
 
     @classmethod
     def de_peticion(cls, datos):
@@ -176,9 +179,13 @@ def consulta(usuario, filtros: Filtros):
     utiles = [p for p in lista if p not in ignoradas]
     terminos = [normalizar(p) for p in utiles]
     propio_primero = Case(When(banco__tipo=Banco.PROPIO, then=Value(0)), default=Value(1))
+    desempate = [propio_primero]
+    trabajo = seccion_elegida(usuario) if filtros.seccion_primero else None
+    if trabajo is not None:
+        desempate = [Case(When(seccion=trabajo, then=Value(0)), default=Value(1)), propio_primero]
     if not utiles:
         partidas = partidas.annotate(relevancia=Value(0.0)).order_by(
-            propio_primero, "banco__nombre", "codigo", "pk"
+            *desempate, "banco__nombre", "codigo", "pk"
         )
         return partidas, [], seccion, sorted(ignoradas)
 
@@ -202,7 +209,7 @@ def consulta(usuario, filtros: Filtros):
             + Coalesce(SearchRank(F("busqueda"), alguna), Value(0.0)) * 2
             + Coalesce(TrigramWordSimilarity(q_normal, "texto_busqueda"), Value(0.0))
         )
-    ).order_by("-relevancia", propio_primero, "codigo", "pk")  # fmt: skip
+    ).order_by("-relevancia", *desempate, "codigo", "pk")  # fmt: skip
     return partidas, terminos, seccion, sorted(ignoradas)
 
 

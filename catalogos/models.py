@@ -11,6 +11,8 @@ material) o una **partida auxiliar** (que a su vez se descompone), con factor y 
 from decimal import Decimal
 
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex, OpClass
+from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
@@ -165,10 +167,15 @@ class Partida(ModeloAuditado):
     # Partidas importadas de la plantilla de cálculo: el precio de mano de obra por unidad que
     # traía, como referencia (en el descompuesto va convertido en horas con el coste día).
     precio_mo_referencia = precio_d4("precio de mano de obra por unidad de origen")
+    # Para el buscador (catalogos/busqueda.py). Los rellena la base de datos al guardar o importar
+    # (disparador de la migración 0006): no se escriben desde Python.
+    busqueda = SearchVectorField(null=True, editable=False)  # código, resumen, capítulo y texto
+    texto_busqueda = models.TextField(blank=True, editable=False)  # sin tildes, para trigramas
 
-    history = HistoricalRecords()
+    history = HistoricalRecords(excluded_fields=["busqueda", "texto_busqueda"])
     parte_permisos = "banco"
     campos_importe = ("precio", "precio_mo_referencia")
+    campos_internos = ("busqueda", "texto_busqueda")
 
     class Meta:
         verbose_name = "partida"
@@ -176,6 +183,10 @@ class Partida(ModeloAuditado):
         ordering = ["banco", "codigo"]
         constraints = [
             models.UniqueConstraint(fields=["banco", "codigo"], name="partida_codigo_por_banco")
+        ]
+        indexes = [
+            GinIndex(fields=["busqueda"], name="partida_busqueda_gin"),
+            GinIndex(OpClass("texto_busqueda", name="gin_trgm_ops"), name="partida_trigramas_gin"),
         ]
 
     def __str__(self):

@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.humanize",
+    "django.contrib.postgres",  # búsqueda de texto completo, trigramas y unaccent
     "django.forms",  # plantillas de widgets propias en templates/componentes (FORM_RENDERER)
     "django_htmx",
     "simple_history",
